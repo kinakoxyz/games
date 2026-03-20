@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hit & Blow Online</title>
+<link href="https://fonts.googleapis.com/css2?family=Jura:wght@600;700&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #121216;
+    --surface: #1e1e24;
+    --surface2: #2a2a32;
+    --border: #3f3f4e;
+    --text: #f0f0f0;
+    --text-muted: #8e8e9e;
+    --primary: #4ecca3;
+    --primary-dark: #3db892;
+    --danger: #ff6b6b;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans JP', sans-serif;
+    background: var(--bg); color: var(--text);
+    min-height: 100vh; font-size: 14px;
+  }
+
+  #app { min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+  .screen { width: 100%; max-width: 520px; padding: 20px 16px 60px; }
+
+  .logo-main {
+    font-family: 'Jura', sans-serif; font-size: 48px; font-weight: 700;
+    color: var(--primary); text-shadow: 0 0 15px rgba(78,204,163,0.4);
+    text-align: center; margin-bottom: 4px; letter-spacing: 2px;
+  }
+  .logo-sub { text-align: center; color: var(--text-muted); font-size: 12px; letter-spacing: 4px; margin-bottom: 32px; font-family: 'Jura', sans-serif; }
+
+  .card { 
+    background: var(--surface); border: 1px solid var(--border); 
+    border-radius: var(--radius); padding: 20px; margin-bottom: 12px; 
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  }
+  .card-title { font-size: 13px; color: var(--primary); margin-bottom: 12px; font-weight: 700; letter-spacing: 1px; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 12px 24px; border: none; border-radius: 8px;
+    font-family: 'Noto Sans JP', sans-serif; font-size: 14px; font-weight: 700;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: var(--primary); color: #121216; box-shadow: 0 4px 10px rgba(78,204,163,0.2); }
+  .btn-primary:hover { background: var(--primary-dark); box-shadow: 0 6px 15px rgba(78,204,163,0.4); }
+  .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+  .btn-ghost:hover { background: var(--surface2); color: var(--text); }
+  .btn-full { width: 100%; margin-bottom: 8px; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  input[type=text] {
+    width: 100%; padding: 12px 14px; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text); font-family: 'Noto Sans JP', sans-serif; font-size: 14px;
+    outline: none; transition: all 0.2s;
+  }
+  input[type=text]:focus { border-color: var(--primary); box-shadow: 0 0 8px rgba(78,204,163,0.3); }
+  label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+
+  .room-code {
+    font-family: 'Jura', monospace; font-size: 36px; letter-spacing: 8px; font-weight: 700;
+    color: var(--primary); text-shadow: 0 0 10px rgba(78,204,163,0.3); 
+    text-align: center; padding: 12px; background: var(--surface2);
+    border-radius: 8px; margin-bottom: 8px;
+  }
+
+  .player-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px dashed var(--border); }
+  .player-row:last-child { border-bottom: none; }
+  .avatar {
+    width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 700; flex-shrink: 0; background: rgba(78,204,163,0.1); color: var(--primary); border: 1px solid var(--primary);
+  }
+
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.1); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Game Specific Styles */
+  .ball {
+    width: 36px; height: 36px; border-radius: 50%;
+    box-shadow: inset -4px -4px 8px rgba(0,0,0,0.4), 0 3px 6px rgba(0,0,0,0.5);
+  }
+  .ball-small {
+    width: 18px; height: 18px; border-radius: 50%;
+    box-shadow: inset -2px -2px 4px rgba(0,0,0,0.4), 0 1px 3px rgba(0,0,0,0.5);
+  }
+  .ball.empty { background: transparent; border: 2px dashed var(--border); box-shadow: none; }
+  .ball-small.empty { background: transparent; border: 1px dashed var(--border); box-shadow: none; }
+  
+  .color-btn {
+    width: 48px; height: 48px; border-radius: 50%; border: none;
+    box-shadow: inset -4px -4px 8px rgba(0,0,0,0.3), 0 4px 8px rgba(0,0,0,0.4);
+    cursor: pointer; transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .color-btn:active:not(:disabled) { transform: scale(0.85); }
+  .color-btn:disabled { opacity: 0.15; cursor: not-allowed; transform: scale(0.8); }
+
+  .history-box {
+    background: var(--surface2); border-radius: 8px; padding: 12px;
+    border: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .history-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-bottom: 8px; border-bottom: 1px dashed var(--border);
+  }
+  .history-row:last-child { border-bottom: none; padding-bottom: 0; }
+  
+  .hb-badge {
+    font-family: 'Jura', sans-serif; font-size: 14px; font-weight: 700;
+    display: flex; gap: 8px;
+  }
+  .hb-hit { color: var(--primary); }
+  .hb-blow { color: var(--text-muted); }
+
+  .toast-container {
+    position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+    z-index: 1000; display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+  }
+  .toast {
+    background: rgba(42, 42, 50, 0.95); border: 1px solid var(--primary);
+    color: white; padding: 12px 24px; border-radius: 24px;
+    font-weight: bold; font-size: 14px; text-align: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    animation: toast-in 0.3s ease-out, toast-out 0.3s ease-in 2.5s forwards;
+    white-space: nowrap;
+  }
+  @keyframes toast-in { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes toast-out { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-20px); } }
+
+  .rulebook-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.85); z-index:100; display:flex; align-items:flex-start; justify-content:center; overflow-y:auto; padding:16px; }
+  .rulebook-content { background:var(--bg); border:1px solid var(--border); border-radius:12px; width:100%; max-width:500px; padding:24px; margin:auto; box-shadow: 0 0 20px rgba(0,0,0,0.8); }
+  .rule-section { margin-bottom:20px; }
+  .rule-section h3 { font-size:14px; color:var(--primary); border-bottom:1px dashed var(--primary); padding-bottom:6px; margin-bottom:10px; }
+  .rule-row { display:flex; gap:10px; margin-bottom:8px; font-size:13px; line-height:1.6; }
+
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<!-- Firebase SDK -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, set, get, onValue, update, off, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+// ============================================================
+// 🔥 FIREBASE CONFIG
+// ============================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyCW7voDrgpBC0AabZ_O3o1ZDKJ9fqnKa7k",
+  authDomain: "grimoire-eclipse.firebaseapp.com",
+  databaseURL: "https://grimoire-eclipse-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "grimoire-eclipse",
+  storageBucket: "grimoire-eclipse.firebasestorage.app",
+  messagingSenderId: "429385058377",
+  appId: "1:429385058377:web:aaa1f22471f2bc938fd798",
+  measurementId: "G-T35ZKBRW05"
+};
+
+const BALL_COLORS = [
+  {id: 0, color: "#ef4444", name: "Red"},
+  {id: 1, color: "#2196f3", name: "Blue"},
+  {id: 2, color: "#4caf50", name: "Green"},
+  {id: 3, color: "#ffeb3b", name: "Yellow"},
+  {id: 4, color: "#9c27b0", name: "Purple"},
+  {id: 5, color: "#ff9800", name: "Orange"},
+  {id: 6, color: "#00bcd4", name: "Cyan"},
+  {id: 7, color: "#e91e63", name: "Pink"}
+];
+
+let app_fb, db, auth;
+let roomRef = null, roomListener = null;
+let myPlayerIndex = -1;
+let myName = "";
+let roomCode = "";
+let currentState = null;
+
+// Local UI State
+let currentInput = [];
+let lastTurn = 0;
+let lastPhase = "";
+let selectedMode = 'vs';
+let selectedHoleCount = 4;
+let selectedColorCount = 6;
+let lastToastTime = 0;
+let previousMainStateStr = "";
+
+try {
+  app_fb = initializeApp(firebaseConfig);
+  db = getDatabase(app_fb);
+  auth = getAuth(app_fb);
+  signInAnonymously(auth).catch(e => console.error("Auth Error", e));
+} catch(e) { console.error("Firebase Init Error", e); }
+
+const el = document.getElementById("app");
+function r(html) { el.innerHTML = html; }
+function h(s) { return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function generateRoomCode() { return String(Math.floor(1000 + Math.random() * 9000)); }
+
+function calculateHitBlow(secret, guess, holeCount = 4) {
+  let hit = 0; let blow = 0;
+  for(let i=0; i<holeCount; i++) {
+    if(guess[i] === secret[i]) hit++;
+    else if(secret.includes(guess[i])) blow++;
+  }
+  return { hit, blow };
+}
+
+function listenRoom(code, cb) {
+  if(!db) return;
+  if(roomListener) off(ref(db, `games/hb/${roomCode}`));
+  roomRef = ref(db, `games/hb/${code}`);
+  roomListener = onValue(roomRef, snap => {
+    if(snap.exists()) cb(snap.val());
+  });
+}
+
+showSetup();
+
+function showSetup() {
+  r(`
+    <div class="screen">
+      <div class="logo-main">HIT & BLOW</div>
+      <div class="logo-sub">ONLINE DECRYPTION</div>
+      <div class="card">
+        <div class="card-title">🆕 ルームを作成する</div>
+        <label>あなたの名前</label>
+        <input type="text" id="nameInput" placeholder="例: エージェント" value="${h(myName)}" maxlength="10" style="margin-bottom:16px">
+        
+        <label>ゲームモード</label>
+        <div style="display:flex; gap:8px; margin-bottom: 16px;">
+          <button class="btn ${selectedMode === 'vs' ? 'btn-primary' : 'btn-ghost'}" style="flex:1; padding: 8px; font-size: 13px;" onclick="window._setMode('vs')">⚔️ 対戦</button>
+          <button class="btn ${selectedMode === 'vs-speed' ? 'btn-primary' : 'btn-ghost'}" style="flex:1; padding: 8px; font-size: 13px;" onclick="window._setMode('vs-speed')">🏁 早解き</button>
+          <button class="btn ${selectedMode === 'coop' ? 'btn-primary' : 'btn-ghost'}" style="flex:1; padding: 8px; font-size: 13px;" onclick="window._setMode('coop')">🤝 協力</button>
+        </div>
+
+        <label>玉の数</label>
+        <div style="display:flex; gap:8px; margin-bottom: 16px;">
+          <button class="btn ${selectedHoleCount === 3 ? 'btn-primary' : 'btn-ghost'}" style="flex:1; padding: 8px;" onclick="window._setHoleCount(3)">3個</button>
+          <button class="btn ${selectedHoleCount === 4 ? 'btn-primary' : 'btn-ghost'}" style="flex:1; padding: 8px;" onclick="window._setHoleCount(4)">4個</button>
+          <button class="btn ${selectedHoleCount === 5 ? 'btn-primary' : 'btn-ghost'}" style="flex:1; padding: 8px;" onclick="window._setHoleCount(5)">5個</button>
+        </div>
+
+        <label>色の数</label>
+        <div style="display:flex; gap:8px; margin-bottom: 16px;">
+          <button class="btn ${selectedColorCount === 6 ? 'btn-primary' : 'btn-ghost'}" style="flex:1; padding: 8px;" onclick="window._setColorCount(6)">6色</button>
+          <button class="btn ${selectedColorCount === 7 ? 'btn-primary' : 'btn-ghost'}" style="flex:1; padding: 8px;" onclick="window._setColorCount(7)">7色</button>
+          <button class="btn ${selectedColorCount === 8 ? 'btn-primary' : 'btn-ghost'}" style="flex:1; padding: 8px;" onclick="window._setColorCount(8)">8色</button>
+        </div>
+
+        <button class="btn btn-primary btn-full" onclick="window._createRoom()">ルームを作成</button>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;font-size:12px;color:var(--text-muted);margin:16px 0;">
+        <div style="flex:1;height:1px;background:var(--border);"></div> または <div style="flex:1;height:1px;background:var(--border);"></div>
+      </div>
+      
+      <div class="card">
+        <div class="card-title">🚪 ルームに参加する</div>
+        <label>あなたの名前</label>
+        <input type="text" id="joinNameInput" placeholder="例: エージェント" value="${h(myName)}" maxlength="10" style="margin-bottom:16px">
+        <label>ルームID（4桁）</label>
+        <input type="text" id="roomInput" placeholder="0000" maxlength="4" inputmode="numeric" style="margin-bottom:16px;letter-spacing:8px;text-align:center;font-family:'Jura',monospace;font-size:24px;font-weight:700;">
+        <button class="btn btn-ghost btn-full" onclick="window._joinRoom()">参加する</button>
+      </div>
+
+      <button class="btn btn-ghost btn-full" onclick="window._showRulebook()">📖 ルールを確認する</button>
+      <button class="btn btn-ghost btn-full" style="margin-top:8px;border-color:transparent;" onclick="location.href='../'">🏠 ゲーム一覧に戻る</button>
+    </div>
+  `);
+}
+
+window._setMode = function(mode) {
+  selectedMode = mode;
+  const nameInp = document.getElementById("nameInput");
+  if(nameInp) myName = nameInp.value; // 名前を保持
+  showSetup();
+};
+
+window._setHoleCount = function(count) {
+  selectedHoleCount = count;
+  const nameInp = document.getElementById("nameInput");
+  if(nameInp) myName = nameInp.value; // 名前を保持
+  showSetup();
+};
+
+window._setColorCount = function(count) {
+  selectedColorCount = count;
+  const nameInp = document.getElementById("nameInput");
+  if(nameInp) myName = nameInp.value; // 名前を保持
+  showSetup();
+};
+
+window._createRoom = async function() {
+  const name = document.getElementById("nameInput")?.value.trim();
+  if(!name) { alert("名前を入力してください"); return; }
+  myName = name; roomCode = generateRoomCode(); myPlayerIndex = 0;
+  const state = {
+    phase: "waiting",
+    mode: selectedMode,
+    holeCount: selectedHoleCount,
+    colorCount: selectedColorCount,
+    players: [{name}],
+    secretCodes: false,
+    guesses: false,
+    history: false,
+    turn: 1,
+    winner: -1
+  };
+  await set(ref(db, `games/hb/${roomCode}`), state);
+  listenRoom(roomCode, onRoomUpdate);
+};
+
+window._joinRoom = async function() {
+  const name = (document.getElementById("joinNameInput")?.value || document.getElementById("nameInput")?.value).trim();
+  const code = (document.getElementById("roomInput")?.value||"").trim().toUpperCase();
+  if(!name) { alert("名前を入力してください"); return; }
+  if(code.length !== 4) { alert("正しい部屋コードを入力してください"); return; }
+  myName = name; roomCode = code;
+  const snap = await get(ref(db, `games/hb/${code}`));
+  if(!snap.exists()) { alert("部屋が見つかりません"); return; }
+  const state = snap.val();
+  
+  const idx = state.players.findIndex(p => p.name === name);
+  if (idx !== -1) {
+    myPlayerIndex = idx;
+  } else {
+    if(state.players.length >= 2) { alert("この部屋はすでに満員です"); return; }
+    myPlayerIndex = 1;
+    state.players.push({name});
+    await update(ref(db, `games/hb/${code}`), { players: state.players });
+  }
+  listenRoom(roomCode, onRoomUpdate);
+};
+
+function onRoomUpdate(state) {
+  currentState = state;
+
+  // State transitions handled by host
+  if (myPlayerIndex === 0) {
+    if (state.mode === 'vs') {
+      // Both set secret codes -> Go to playing
+      if (state.phase === "setting" && state.secretCodes && state.secretCodes[0] && state.secretCodes[1]) {
+        update(ref(db, `games/hb/${roomCode}`), { phase: "playing", turn: 1, guesses: false, history: false });
+        return;
+      }
+      // Both submitted guesses -> Calculate and proceed
+      if (state.phase === "playing" && state.guesses && state.guesses[0] && state.guesses[1]) {
+        const g0 = state.guesses[0]; const g1 = state.guesses[1];
+        const s0 = state.secretCodes[0]; const s1 = state.secretCodes[1];
+        
+        const res0 = calculateHitBlow(s1, g0, state.holeCount || 4); // P0 guesses P1's secret
+        const res1 = calculateHitBlow(s0, g1, state.holeCount || 4); // P1 guesses P0's secret
+  
+        const hist = state.history || [];
+        hist.push({ p0_guess: g0, p0_hit: res0.hit, p0_blow: res0.blow, p1_guess: g1, p1_hit: res1.hit, p1_blow: res1.blow });
+  
+        let nextPhase = "playing";
+        let winner = -1;
+        if (res0.hit === (state.holeCount || 4) && res1.hit === (state.holeCount || 4)) { winner = -1; nextPhase = "ended"; }
+        else if (res0.hit === (state.holeCount || 4)) { winner = 0; nextPhase = "ended"; }
+        else if (res1.hit === (state.holeCount || 4)) { winner = 1; nextPhase = "ended"; }
+        else if (state.turn >= 8) { winner = -1; nextPhase = "ended"; }
+  
+        update(ref(db, `games/hb/${roomCode}`), {
+          phase: nextPhase,
+          history: hist,
+          guesses: false, // Reset guesses for next turn
+          drafts: false,
+          turn: nextPhase === "ended" ? state.turn : state.turn + 1,
+          winner: winner
+        });
+        return;
+      }
+    } else if (state.mode === 'vs-speed') {
+      if (state.phase === "playing" && state.guesses && state.guesses[0] && state.guesses[1]) {
+        const g0 = state.guesses[0]; const g1 = state.guesses[1];
+        const secret = state.systemSecret;
+        
+        const res0 = calculateHitBlow(secret, g0, state.holeCount || 4);
+        const res1 = calculateHitBlow(secret, g1, state.holeCount || 4);
+  
+        const hist = state.history || [];
+        hist.push({ p0_guess: g0, p0_hit: res0.hit, p0_blow: res0.blow, p1_guess: g1, p1_hit: res1.hit, p1_blow: res1.blow });
+  
+        let nextPhase = "playing";
+        let winner = -1;
+        if (res0.hit === (state.holeCount || 4) && res1.hit === (state.holeCount || 4)) { winner = -1; nextPhase = "ended"; }
+        else if (res0.hit === (state.holeCount || 4)) { winner = 0; nextPhase = "ended"; }
+        else if (res1.hit === (state.holeCount || 4)) { winner = 1; nextPhase = "ended"; }
+        else if (state.turn >= 8) { winner = -1; nextPhase = "ended"; }
+  
+        update(ref(db, `games/hb/${roomCode}`), {
+          phase: nextPhase,
+          history: hist,
+          guesses: false,
+          drafts: false,
+          turn: nextPhase === "ended" ? state.turn : state.turn + 1,
+          winner: winner
+        });
+        return;
+      }
+    } else if (state.mode === 'coop') {
+      // Coop mode submission
+      if (state.phase === "playing" && state.guesses && state.guesses[state.activePlayerIndex]) {
+        const guess = state.guesses[state.activePlayerIndex];
+        const secret = state.systemSecret;
+        const res = calculateHitBlow(secret, guess, state.holeCount || 4);
+
+        const hist = state.history || [];
+        hist.push({ playerIndex: state.activePlayerIndex, guess: guess, hit: res.hit, blow: res.blow, turn: state.turn });
+
+        let nextPhase = "playing";
+        let winner = -1; // -1: failed, 2: success
+        let nextActive = 1 - state.activePlayerIndex;
+        
+        if (res.hit === (state.holeCount || 4)) { winner = 2; nextPhase = "ended"; }
+        else if (state.turn >= 16) { winner = -1; nextPhase = "ended"; }
+
+        update(ref(db, `games/hb/${roomCode}`), {
+          phase: nextPhase,
+          history: hist,
+          guesses: false,
+          drafts: false,
+          turn: state.turn + 1,
+          activePlayerIndex: nextActive,
+          winner: winner
+        });
+        return;
+      }
+    }
+  }
+
+  // Clear local input on turn/phase change
+  if (lastTurn !== state.turn || lastPhase !== state.phase) {
+    currentInput = [];
+    lastTurn = state.turn;
+    lastPhase = state.phase;
+  }
+
+  // Check for new chat/stamp messages
+  const msgs = state.chatMessages || [];
+  if (msgs.length > 0) {
+    const lastMsg = msgs[msgs.length - 1];
+    if (lastMsg.timestamp > lastToastTime) {
+      lastToastTime = lastMsg.timestamp;
+      showToast(state.players[lastMsg.senderIndex].name, lastMsg.text);
+    }
+  }
+
+  // 画面全体を描画し直す必要があるか（フェーズ、ターン、履歴などの主要データ）をチェック
+  const mainState = {
+    phase: state.phase,
+    turn: state.turn,
+    history: state.history,
+    guesses: state.guesses,
+    secretCodes: state.secretCodes,
+    winner: state.winner,
+    activePlayerIndex: state.activePlayerIndex,
+    players: state.players
+  };
+  const currentMainStateStr = JSON.stringify(mainState);
+  const needsFullRender = (previousMainStateStr !== currentMainStateStr);
+
+  if (needsFullRender) {
+    // 主要な状態が変わった場合のみ、画面全体を再構築
+    if(state.phase === "waiting") renderWaiting(state);
+    else if(state.phase === "setting") renderSetting(state);
+    else if(state.phase === "playing") renderGame(state);
+    else if(state.phase === "ended") renderEnded(state);
+
+    previousMainStateStr = currentMainStateStr;
+
+    // 全体描画後はチャットを一番下にする
+    setTimeout(() => {
+      const logBox = document.getElementById('chatLogBox');
+      if (logBox) logBox.scrollTop = logBox.scrollHeight;
+    }, 0);
+  } else {
+    // ドラフトやチャットのみの変更なら、対象のDOMだけを部分更新する（入力中の中断を防ぐ）
+
+    // 自分の入力欄の部分更新
+    const myInputContainer = document.getElementById('my-input-container');
+    if (myInputContainer) {
+      myInputContainer.innerHTML = [...Array(state.holeCount || 4)].map((_, i) => {
+         const c = currentInput[i];
+         if (c !== undefined) return `<div class="ball" style="background:${BALL_COLORS[c].color}"></div>`;
+         else return `<div class="ball empty"></div>`;
+      }).join('');
+      
+      const submitBtn = document.getElementById('submit-btn');
+      if (submitBtn) {
+        submitBtn.disabled = currentInput.length !== (state.holeCount || 4);
+      }
+      
+      BALL_COLORS.slice(0, state.colorCount || 6).forEach(bc => {
+        const btn = document.getElementById(`color-btn-${bc.id}`);
+        if (btn) btn.disabled = currentInput.includes(bc.id);
+      });
+    }
+
+    // チャットの部分更新
+    const logBox = document.getElementById('chatLogBox');
+    if (logBox) {
+      // 一番下付近にいる時だけ追従スクロールさせる
+      const isAtBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight <= 20;
+      logBox.innerHTML = getChatLogHtml(state);
+      if (isAtBottom) logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    // 相手のドラフト（対戦モード）の部分更新
+    const oppDraftContainer = document.getElementById('opp-draft-container');
+    if (oppDraftContainer) {
+      const oppReady = state.guesses && state.guesses[1 - myPlayerIndex];
+      const oppDraft = state.drafts && state.drafts[1 - myPlayerIndex] ? state.drafts[1 - myPlayerIndex] : [];
+      oppDraftContainer.innerHTML = [...Array(state.holeCount || 4)].map((_, i) => {
+         if (oppReady) return `<div class="ball-small" style="background:var(--primary); border:none;"></div>`;
+         const c = oppDraft[i];
+         if (c !== undefined) return `<div class="ball-small" style="background:${BALL_COLORS[c].color}"></div>`;
+         else return `<div class="ball-small empty"></div>`;
+      }).join('');
+    }
+
+    // 相手のドラフト（協力モード）の部分更新
+    const activeDraftContainer = document.getElementById('active-draft-container');
+    if (activeDraftContainer && state.activePlayerIndex !== myPlayerIndex) {
+      const activeDraft = state.drafts && state.drafts[state.activePlayerIndex] ? state.drafts[state.activePlayerIndex] : [];
+      activeDraftContainer.innerHTML = [...Array(state.holeCount || 4)].map((_, i) => {
+         const c = activeDraft[i];
+         if (c !== undefined) return `<div class="ball" style="background:${BALL_COLORS[c].color}"></div>`;
+         else return `<div class="ball empty"></div>`;
+      }).join('');
+    }
+  }
+}
+
+function showToast(name, text) {
+  let container = document.getElementById('toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    container.className = 'toast-container';
+    document.body.appendChild(container);
+  }
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.innerHTML = `<span style="color:var(--primary);margin-right:8px;">${h(name)}:</span>${h(text)}`;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+function renderWaiting(state) {
+  const isHost = myPlayerIndex === 0;
+  const canStart = state.players.length === 2;
+  r(`
+    <div class="screen">
+      <div class="logo-main" style="font-size:40px; margin-bottom: 24px;">HIT & BLOW</div>
+      <div class="card">
+        <div class="card-title">ACCESS CODE</div>
+        <div class="room-code">${h(roomCode)}</div>
+        <div style="text-align:center; font-size:12px; margin-bottom:12px; color:var(--primary);">
+          モード: <strong>${state.mode === 'coop' ? '🤝 協力モード' : state.mode === 'vs-speed' ? '🏁 早解き対戦' : '⚔️ 対戦モード'}</strong><br>
+          玉の数: <strong>${state.holeCount || 4}個</strong>
+          <br>色の数: <strong>${state.colorCount || 6}色</strong>
+        </div>
+        <p style="text-align:center;font-size:12px;color:var(--text-muted);margin-bottom:16px">対戦相手を待っています...</p>
+        <div style="height:1px;background:var(--border);margin:16px 0"></div>
+        ${state.players.map((p,i) => `
+          <div class="player-row">
+            <div class="avatar">${i===0?'H':'C'}</div>
+            <span style="flex:1">${h(p.name)}</span>
+            ${i===myPlayerIndex?'<span style="font-size:11px;color:var(--primary)">あなた</span>':""}
+          </div>
+        `).join("")}
+        <div style="margin-top:20px">
+          ${isHost && canStart ? `<button class="btn btn-primary btn-full" onclick="window._startGame()">START DECRYPTION</button>` : ""}
+          ${!canStart ? `<p style="text-align:center;font-size:12px;color:var(--text-muted)"><span class="spinner"></span>相手の参加を待機中</p>` : ""}
+          ${canStart && !isHost ? `<p style="text-align:center;font-size:12px;color:var(--text-muted)"><span class="spinner"></span>ホストの開始操作を待っています</p>` : ""}
+          <button class="btn btn-ghost btn-full" style="margin-top:16px" onclick="if(confirm('ゲームを終了して一覧に戻りますか？')) location.href='../'">🚪 退出する</button>
+        </div>
+      </div>
+      ${renderChatUI(state)}
+    </div>
+  `);
+}
+
+window._startGame = function() {
+  if (currentState.mode === 'coop' || currentState.mode === 'vs-speed') {
+    const allColors = BALL_COLORS.slice(0, currentState.colorCount || 6).map(c => c.id);
+    const secret = [];
+    for(let i=0; i<(currentState.holeCount || 4); i++) {
+      const idx = Math.floor(Math.random() * allColors.length);
+      secret.push(allColors.splice(idx, 1)[0]);
+    }
+    update(ref(db, `games/hb/${roomCode}`), {
+      phase: "playing",
+      turn: 1,
+      systemSecret: secret,
+      activePlayerIndex: currentState.mode === 'coop' ? (Math.random() < 0.5 ? 0 : 1) : null,
+      history: false,
+      drafts: false
+    });
+  } else {
+    update(ref(db, `games/hb/${roomCode}`), { phase: "setting", drafts: false });
+  }
+};
+
+window._addColor = function(id) {
+  const limit = currentState ? (currentState.holeCount || 4) : 4;
+  if (currentInput.length >= limit || currentInput.includes(id)) return;
+  currentInput.push(id);
+  if (roomCode && currentState?.phase === "playing" && currentState?.mode !== 'vs-speed') set(ref(db, `games/hb/${roomCode}/drafts/${myPlayerIndex}`), currentInput);
+  onRoomUpdate(currentState); // Re-render
+};
+window._clearColor = function() {
+  currentInput = [];
+  if (roomCode && currentState?.phase === "playing" && currentState?.mode !== 'vs-speed') set(ref(db, `games/hb/${roomCode}/drafts/${myPlayerIndex}`), null);
+  onRoomUpdate(currentState); // Re-render
+};
+window._submitSetting = function() {
+  const limit = currentState ? (currentState.holeCount || 4) : 4;
+  if (currentInput.length !== limit) return;
+  set(ref(db, `games/hb/${roomCode}/secretCodes/${myPlayerIndex}`), currentInput);
+};
+window._submitGuess = function() {
+  const limit = currentState ? (currentState.holeCount || 4) : 4;
+  if (currentInput.length !== limit) return;
+  set(ref(db, `games/hb/${roomCode}/guesses/${myPlayerIndex}`), currentInput);
+};
+
+function renderSetting(state) {
+  const isReady = state.secretCodes && state.secretCodes[myPlayerIndex];
+  
+  r(`
+    <div class="screen">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="window._showRulebook()">📖 RULE</button>
+          <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="if(confirm('ゲームを終了して一覧に戻りますか？')) location.href='../'">🚪 退出</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2 style="text-align:center;margin-bottom:8px;font-family:'Jura',sans-serif;">SET YOUR SECRET CODE</h2>
+        <p style="font-size:12px;color:var(--text-muted);text-align:center;margin-bottom:24px;">
+          相手に解読させる${state.holeCount || 4}色の組み合わせを選んでください。<br>※同じ色は2回使えません
+        </p>
+        
+        <div id="my-input-container" style="display:flex;justify-content:center;gap:16px;margin-bottom:32px;">
+          ${[...Array(state.holeCount || 4)].map((_, i) => {
+             const c = currentInput[i];
+             if (c !== undefined) return `<div class="ball" style="background:${BALL_COLORS[c].color}"></div>`;
+             else return `<div class="ball empty"></div>`;
+          }).join('')}
+        </div>
+        
+        ${isReady ? `
+          <div style="text-align:center;color:var(--primary);font-weight:bold;margin-top:32px;">[OK] 準備完了</div>
+          <div style="text-align:center;font-size:12px;color:var(--text-muted);margin-top:8px;"><span class="spinner"></span>相手の設定を待っています...</div>
+        ` : `
+          <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:24px;">
+            ${BALL_COLORS.slice(0, state.colorCount || 6).map(bc => `
+              <button id="color-btn-${bc.id}" class="color-btn" style="background:${bc.color}" 
+                ${currentInput.includes(bc.id) ? 'disabled' : ''} 
+                onclick="window._addColor(${bc.id})"></button>
+            `).join('')}
+          </div>
+          <div style="display:flex;gap:12px;">
+            <button class="btn btn-ghost" style="flex:1;" onclick="window._clearColor()">クリア</button>
+            <button id="submit-btn" class="btn btn-primary" style="flex:2;" 
+              ${currentInput.length === (state.holeCount || 4) ? '' : 'disabled'} 
+              onclick="window._submitSetting()">決定</button>
+          </div>
+        `}
+      </div>
+      ${renderChatUI(state)}
+    </div>
+  `);
+}
+
+function renderGame(state) {
+  if (state.mode === 'coop') {
+    renderGameCoop(state);
+  } else {
+    renderGameVs(state);
+  }
+}
+
+function renderGameVs(state) {
+  const isReady = state.guesses && state.guesses[myPlayerIndex];
+  const oppReady = state.guesses && state.guesses[1 - myPlayerIndex];
+  const history = state.history || [];
+  const oppDraft = state.drafts && state.drafts[1 - myPlayerIndex] ? state.drafts[1 - myPlayerIndex] : [];
+  
+  r(`
+    <div class="screen">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div style="font-family:'Jura',sans-serif;font-size:24px;font-weight:700;color:var(--primary);">TURN ${state.turn} <span style="font-size:14px;color:var(--text-muted)">/ 8</span></div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="window._showRulebook()">📖 RULE</button>
+          <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="if(confirm('ゲームを終了して一覧に戻りますか？')) location.href='../'">🚪 退出</button>
+        </div>
+      </div>
+      
+      <!-- 履歴エリア -->
+      <div style="display:flex;gap:12px;margin-bottom:16px;">
+        <div class="history-box" style="flex:1; max-height:250px; overflow-y:auto;">
+          <div style="font-size:11px;color:var(--text-muted);text-align:center;letter-spacing:1px;">あなたの予想</div>
+          ${history.map(h => {
+            const g = myPlayerIndex === 0 ? h.p0_guess : h.p1_guess;
+            const hit = myPlayerIndex === 0 ? h.p0_hit : h.p1_hit;
+            const blow = myPlayerIndex === 0 ? h.p0_blow : h.p1_blow;
+            return `
+              <div class="history-row">
+                <div style="display:flex;gap:4px;">
+                  ${g.map(c => `<div class="ball-small" style="background:${BALL_COLORS[c].color}"></div>`).join('')}
+                </div>
+                <div class="hb-badge"><span class="hb-hit">${hit}H</span> <span class="hb-blow">${blow}B</span></div>
+              </div>
+            `;
+          }).join('')}
+          ${history.length === 0 ? `<div style="text-align:center;font-size:11px;color:var(--border);padding:10px 0;">NO DATA</div>` : ''}
+        </div>
+        
+        <div class="history-box" style="flex:1; opacity:0.8; max-height:250px; overflow-y:auto;">
+          <div style="font-size:11px;color:var(--text-muted);text-align:center;letter-spacing:1px;">相手の予想</div>
+          ${history.map(h => {
+            const g = myPlayerIndex === 0 ? h.p1_guess : h.p0_guess;
+            const hit = myPlayerIndex === 0 ? h.p1_hit : h.p0_hit;
+            const blow = myPlayerIndex === 0 ? h.p1_blow : h.p0_blow;
+            return `
+              <div class="history-row">
+                <div style="display:flex;gap:4px;">
+                  ${g ? g.map(c => `<div class="ball-small" style="background:${BALL_COLORS[c].color}"></div>`).join('') : [...Array(state.holeCount || 4)].map(()=>`<div class="ball-small empty"></div>`).join('')}
+                </div>
+                <div class="hb-badge"><span class="hb-hit">${hit}H</span> <span class="hb-blow">${blow}B</span></div>
+              </div>
+            `;
+          }).join('')}
+          ${history.length === 0 ? `<div style="text-align:center;font-size:11px;color:var(--border);padding:10px 0;">NO DATA</div>` : ''}
+        </div>
+      </div>
+      
+      <!-- 相手の思考状況 -->
+      <div class="card" style="padding: 12px; margin-bottom: 16px; ${state.mode === 'vs-speed' ? 'display: none;' : ''}">
+        <div style="font-size: 11px; color: var(--text-muted); text-align: center; margin-bottom: 8px;">相手の思考状況 (リアルタイム)</div>
+        <div id="opp-draft-container" style="display: flex; justify-content: center; gap: 12px;">
+          ${[...Array(state.holeCount || 4)].map((_, i) => {
+             if (oppReady) return `<div class="ball-small" style="background:var(--primary); border:none;"></div>`;
+             const c = oppDraft[i];
+             if (c !== undefined) return `<div class="ball-small" style="background:${BALL_COLORS[c].color}"></div>`;
+             else return `<div class="ball-small empty"></div>`;
+          }).join('')}
+        </div>
+      </div>
+
+      <!-- 入力エリア -->
+      <div class="card">
+        <div id="my-input-container" style="display:flex;justify-content:center;gap:16px;margin-bottom:24px;">
+          ${[...Array(state.holeCount || 4)].map((_, i) => {
+             const c = currentInput[i];
+             if (c !== undefined) return `<div class="ball" style="background:${BALL_COLORS[c].color}"></div>`;
+             else return `<div class="ball empty"></div>`;
+          }).join('')}
+        </div>
+        
+        ${isReady ? `
+          <div style="text-align:center;color:var(--primary);font-weight:bold;margin-bottom:8px;">[OK] 送信完了</div>
+          <div style="text-align:center;font-size:12px;color:var(--text-muted);">
+            ${oppReady ? '<span class="spinner"></span>照合中...' : '<span class="spinner"></span>相手の入力を待っています...'}
+          </div>
+        ` : `
+          <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
+            ${BALL_COLORS.slice(0, state.colorCount || 6).map(bc => `
+              <button id="color-btn-${bc.id}" class="color-btn" style="background:${bc.color}" 
+                ${currentInput.includes(bc.id) ? 'disabled' : ''} 
+                onclick="window._addColor(${bc.id})"></button>
+            `).join('')}
+          </div>
+          <div style="display:flex;gap:12px;">
+            <button class="btn btn-ghost" style="flex:1;" onclick="window._clearColor()">クリア</button>
+            <button id="submit-btn" class="btn btn-primary" style="flex:2;" 
+              ${currentInput.length === (state.holeCount || 4) ? '' : 'disabled'} 
+              onclick="window._submitGuess()">予想する</button>
+          </div>
+        `}
+      </div>
+
+      ${renderChatUI(state)}
+    </div>
+  `);
+}
+
+function renderGameCoop(state) {
+  const isActive = state.activePlayerIndex === myPlayerIndex;
+  const activePlayerName = state.players[state.activePlayerIndex].name;
+  const history = state.history || [];
+  const isReady = state.guesses && state.guesses[myPlayerIndex];
+  const activeDraft = state.drafts && state.drafts[state.activePlayerIndex] ? state.drafts[state.activePlayerIndex] : [];
+  
+  r(`
+    <div class="screen">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div style="font-family:'Jura',sans-serif;font-size:24px;font-weight:700;color:var(--primary);">TURN ${state.turn} <span style="font-size:14px;color:var(--text-muted)">/ 16</span></div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="window._showRulebook()">📖 RULE</button>
+          <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="if(confirm('ゲームを終了して一覧に戻りますか？')) location.href='../'">🚪 退出</button>
+        </div>
+      </div>
+
+      <div style="text-align:center; margin-bottom:16px; font-size:16px; font-weight:bold; color:${isActive ? 'var(--primary)' : 'var(--text)'};">
+        ${isActive ? 'あなたのターンです！' : `${h(activePlayerName)} のターンです...`}
+      </div>
+      
+      <!-- 履歴エリア -->
+      <div class="history-box" style="margin-bottom:16px; max-height:250px; overflow-y:auto;">
+        ${history.map(h_item => `
+          <div class="history-row">
+            <div style="font-size:11px; color:var(--text-muted); width:30px;">T${h_item.turn}</div>
+            <div style="font-size:12px; width:70px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${h(state.players[h_item.playerIndex].name)}</div>
+            <div style="display:flex;gap:4px;">
+              ${h_item.guess.map(c => `<div class="ball-small" style="background:${BALL_COLORS[c].color}"></div>`).join('')}
+            </div>
+            <div class="hb-badge"><span class="hb-hit">${h_item.hit}H</span> <span class="hb-blow">${h_item.blow}B</span></div>
+          </div>
+        `).join('')}
+        ${history.length === 0 ? `<div style="text-align:center;font-size:11px;color:var(--border);padding:10px 0;">NO DATA</div>` : ''}
+      </div>
+      
+      <!-- 入力エリア -->
+      <div class="card">
+        <div id="my-input-container" style="display:flex;justify-content:center;gap:16px;margin-bottom:24px;">
+          ${[...Array(state.holeCount || 4)].map((_, i) => {
+             const c = currentInput[i];
+             if (c !== undefined) return `<div class="ball" style="background:${BALL_COLORS[c].color}"></div>`;
+             else return `<div class="ball empty"></div>`;
+          }).join('')}
+        </div>
+        
+        ${isActive ? (
+          isReady ? `
+            <div style="text-align:center;color:var(--primary);font-weight:bold;margin-bottom:8px;">[OK] 送信完了</div>
+            <div style="text-align:center;font-size:12px;color:var(--text-muted);"><span class="spinner"></span>判定中...</div>
+          ` : `
+            <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
+              ${BALL_COLORS.slice(0, state.colorCount || 6).map(bc => `
+                <button id="color-btn-${bc.id}" class="color-btn" style="background:${bc.color}" 
+                  ${currentInput.includes(bc.id) ? 'disabled' : ''} 
+                  onclick="window._addColor(${bc.id})"></button>
+              `).join('')}
+            </div>
+            <div style="display:flex;gap:12px;">
+              <button class="btn btn-ghost" style="flex:1;" onclick="window._clearColor()">クリア</button>
+              <button id="submit-btn" class="btn btn-primary" style="flex:2;" 
+                ${currentInput.length === (state.holeCount || 4) ? '' : 'disabled'} 
+                onclick="window._submitGuess()">予想する</button>
+            </div>
+          `
+        ) : `
+          <div style="text-align:center;font-size:12px;color:var(--text-muted); padding: 10px 0;">
+            <span class="spinner"></span>${h(activePlayerName)} が思考中...
+          </div>
+          <div id="active-draft-container" style="display:flex;justify-content:center;gap:16px;margin-bottom:20px;">
+            ${[...Array(state.holeCount || 4)].map((_, i) => {
+               const c = activeDraft[i];
+               if (c !== undefined) return `<div class="ball" style="background:${BALL_COLORS[c].color}"></div>`;
+               else return `<div class="ball empty"></div>`;
+            }).join('')}
+          </div>
+        `}
+      </div>
+
+      ${renderChatUI(state)}
+    </div>
+  `);
+}
+
+function getChatLogHtml(state) {
+  if (!state) return '';
+  const msgsHtml = (state.chatMessages || []).map(m => {
+    const isMe = m.senderIndex === myPlayerIndex;
+    return `<div style="text-align: ${isMe ? 'right' : 'left'};">
+      <div style="display: inline-block; text-align: left;">
+        <div style="font-size: 10px; color: var(--text-muted); margin-bottom: 2px; text-align: ${isMe ? 'right' : 'left'};">${h(state.players[m.senderIndex].name)}</div>
+        <div style="background: ${isMe ? 'var(--primary)' : 'var(--bg)'}; color: ${isMe ? '#121216' : 'var(--text)'}; border: 1px solid ${isMe ? 'var(--primary)' : 'var(--border)'}; padding: 6px 12px; border-radius: 12px; font-size: 12px; display: inline-block; max-width: 100%; word-break: break-all;">${h(m.text)}</div>
+      </div>
+    </div>`;
+  }).join('');
+  return msgsHtml + (!(state.chatMessages && state.chatMessages.length > 0) ? '<div style="text-align:center; color:var(--text-muted); font-size:11px; margin-top: 40px;">メッセージはありません</div>' : '');
+}
+
+function renderChatUI(state) {
+  if (!state) return '';
+
+  return `
+    <div style="margin-top:16px; padding-top:16px; border-top:1px dashed var(--border);">
+      <div id="chatLogBox" style="height: 140px; overflow-y: auto; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px;">
+        ${getChatLogHtml(state)}
+      </div>
+      <div style="display:flex; gap:8px; margin-bottom: 12px;">
+        <input type="text" id="chatInput" placeholder="メッセージを入力..." maxlength="30" onkeypress="if(event.key==='Enter') window._sendChat()" style="margin-bottom:0;">
+        <button class="btn btn-primary" style="padding: 0 16px; flex-shrink: 0;" onclick="window._sendChat()">送信</button>
+      </div>
+      <div style="display:flex; justify-content:center; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-ghost" style="padding:8px 16px; font-size:16px; border-radius:24px;" onclick="window._sendStamp('👍 ナイス！')">👍</button>
+        <button class="btn btn-ghost" style="padding:8px 16px; font-size:16px; border-radius:24px;" onclick="window._sendStamp('🤔 うーん...')">🤔</button>
+        <button class="btn btn-ghost" style="padding:8px 16px; font-size:16px; border-radius:24px;" onclick="window._sendStamp('💡 わかった！')">💡</button>
+        <button class="btn btn-ghost" style="padding:8px 16px; font-size:16px; border-radius:24px;" onclick="window._sendStamp('🙏 おまかせ！')">🙏</button>
+        <button class="btn btn-ghost" style="padding:8px 16px; font-size:16px; border-radius:24px;" onclick="window._sendStamp('💦 ごめん！')">💦</button>
+      </div>
+    </div>
+  `;
+}
+
+window._sendStamp = function(text) {
+  if (!roomCode) return;
+  // トランザクション処理で同時書き込み時のデータ消失を防ぐ
+  runTransaction(ref(db, `games/hb/${roomCode}/chatMessages`), (messages) => {
+    const newMessages = messages || [];
+    newMessages.push({ senderIndex: myPlayerIndex, text: text, timestamp: Date.now() });
+    if (newMessages.length > 50) newMessages.shift();
+    return newMessages;
+  });
+};
+
+window._sendChat = function() {
+  const input = document.getElementById('chatInput');
+  if (!input || !input.value.trim() || !roomCode) return;
+  
+  const text = input.value.trim();
+  input.value = ''; // UIを先にクリアして操作感を良くする
+  input.focus();
+
+  runTransaction(ref(db, `games/hb/${roomCode}/chatMessages`), (messages) => {
+    const newMessages = messages || [];
+    newMessages.push({ senderIndex: myPlayerIndex, text: text, timestamp: Date.now() });
+    if (newMessages.length > 50) newMessages.shift();
+    return newMessages;
+  });
+};
+
+function renderEnded(state) {
+  if (state.mode === 'coop') {
+    let title = state.winner === 2 ? "MISSION CLEARED!" : "MISSION FAILED";
+    let tColor = state.winner === 2 ? "var(--primary)" : "var(--danger)";
+    
+    r(`
+      <div class="screen">
+        <div style="text-align:center;font-family:'Jura',sans-serif;font-size:40px;font-weight:700;color:${tColor};margin-bottom:4px;text-shadow:0 0 15px ${tColor}44">${title}</div>
+        <p style="text-align:center;color:var(--text-muted);margin-bottom:24px;font-family:'Jura',sans-serif;">TURN ${state.turn > 16 ? 16 : state.turn} END</p>
+        
+        <div class="card" style="text-align:center;">
+          <div class="card-title">正解コード</div>
+          <div style="display:flex;justify-content:center;gap:12px;margin-bottom:16px;">
+            ${state.systemSecret.map(c => `<div class="ball" style="background:${BALL_COLORS[c].color}"></div>`).join('')}
+          </div>
+        </div>
+        
+        ${renderChatUI(state)}
+
+        ${myPlayerIndex === 0 ? `
+          <button class="btn btn-primary btn-full" onclick="window._rematch()">もう一度遊ぶ</button>
+          <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="location.reload()">最初の画面に戻る</button>
+          <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="location.href='../'">🏠 ゲーム一覧に戻る</button>
+        ` : `
+          <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px; text-align:center;"><span class="spinner"></span>ホストの操作を待機中</p>
+          <button class="btn btn-ghost btn-full" onclick="location.reload()">最初の画面に戻る</button>
+          <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="location.href='../'">🏠 ゲーム一覧に戻る</button>
+        `}
+      </div>
+    `);
+    return;
+  }
+
+  if (state.mode === 'vs-speed') {
+    const oppIndex = 1 - myPlayerIndex;
+    let title = "DRAW"; let tColor = "var(--text)";
+    if (state.winner === myPlayerIndex) { title = "YOU WIN!"; tColor = "var(--primary)"; }
+    else if (state.winner === oppIndex) { title = "YOU LOSE"; tColor = "var(--danger)"; }
+    
+    r(`
+      <div class="screen">
+        <div style="text-align:center;font-family:'Jura',sans-serif;font-size:48px;font-weight:700;color:${tColor};margin-bottom:4px;text-shadow:0 0 15px ${tColor}44">${title}</div>
+        <p style="text-align:center;color:var(--text-muted);margin-bottom:24px;font-family:'Jura',sans-serif;">TURN ${state.turn > 8 ? 8 : state.turn} END</p>
+        
+        <div class="card" style="text-align:center;">
+          <div class="card-title">正解コード</div>
+          <div style="display:flex;justify-content:center;gap:12px;margin-bottom:16px;">
+            ${state.systemSecret.map(c => `<div class="ball" style="background:${BALL_COLORS[c].color}"></div>`).join('')}
+          </div>
+        </div>
+        
+        <!-- チャット＆スタンプエリア -->
+        <div style="margin-top:16px; padding-top:16px; border-top:1px dashed var(--border);">
+          <div id="chatLogBox" style="height: 140px; overflow-y: auto; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px;">
+            ${getChatLogHtml(state)}
+          </div>
+
+          <div style="display:flex; gap:8px; margin-bottom: 12px;">
+            <input type="text" id="chatInput" placeholder="メッセージを入力..." maxlength="30" onkeypress="if(event.key==='Enter') window._sendChat()" style="margin-bottom:0;">
+            <button class="btn btn-primary" style="padding: 0 16px; flex-shrink: 0;" onclick="window._sendChat()">送信</button>
+          </div>
+          <div style="display:flex; justify-content:center; gap:8px; flex-wrap:wrap;">
+            <button class="btn btn-ghost" style="padding:8px 16px; font-size:16px; border-radius:24px;" onclick="window._sendStamp('👍 ナイス！')">👍</button>
+            <button class="btn btn-ghost" style="padding:8px 16px; font-size:16px; border-radius:24px;" onclick="window._sendStamp('🤔 うーん...')">🤔</button>
+            <button class="btn btn-ghost" style="padding:8px 16px; font-size:16px; border-radius:24px;" onclick="window._sendStamp('💡 わかった！')">💡</button>
+            <button class="btn btn-ghost" style="padding:8px 16px; font-size:16px; border-radius:24px;" onclick="window._sendStamp('🙏 おまかせ！')">🙏</button>
+            <button class="btn btn-ghost" style="padding:8px 16px; font-size:16px; border-radius:24px;" onclick="window._sendStamp('💦 ごめん！')">💦</button>
+          </div>
+        </div>
+
+        ${myPlayerIndex === 0 ? `
+          <button class="btn btn-primary btn-full" onclick="window._rematch()">もう一度遊ぶ</button>
+          <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="location.reload()">最初の画面に戻る</button>
+          <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="location.href='../'">🏠 ゲーム一覧に戻る</button>
+        ` : `
+          <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px; text-align:center;"><span class="spinner"></span>ホストの操作を待機中</p>
+          <button class="btn btn-ghost btn-full" onclick="location.reload()">最初の画面に戻る</button>
+          <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="location.href='../'">🏠 ゲーム一覧に戻る</button>
+        `}
+      </div>
+    `);
+    return;
+  }
+
+  const oppIndex = 1 - myPlayerIndex;
+  let title = "DRAW"; let tColor = "var(--text)";
+  if (state.winner === myPlayerIndex) { title = "YOU WIN!"; tColor = "var(--primary)"; }
+  else if (state.winner === oppIndex) { title = "YOU LOSE"; tColor = "var(--danger)"; }
+  
+  const mySecret = state.secretCodes[myPlayerIndex];
+  const oppSecret = state.secretCodes[oppIndex];
+  
+  r(`
+    <div class="screen">
+      <div style="text-align:center;font-family:'Jura',sans-serif;font-size:48px;font-weight:700;color:${tColor};margin-bottom:4px;text-shadow:0 0 15px ${tColor}44">${title}</div>
+      <p style="text-align:center;color:var(--text-muted);margin-bottom:24px;font-family:'Jura',sans-serif;">TURN ${state.turn > 8 ? 8 : state.turn} END</p>
+      
+      <div class="card" style="text-align:center;">
+        <div class="card-title">相手の正解コード (解読対象)</div>
+        <div style="display:flex;justify-content:center;gap:12px;margin-bottom:32px;">
+          ${oppSecret ? oppSecret.map(c => `<div class="ball" style="background:${BALL_COLORS[c].color}"></div>`).join('') : ''}
+        </div>
+        
+        <div class="card-title">あなたの正解コード</div>
+        <div style="display:flex;justify-content:center;gap:12px;margin-bottom:16px;">
+          ${mySecret.map(c => `<div class="ball" style="background:${BALL_COLORS[c].color}"></div>`).join('')}
+        </div>
+      </div>
+      
+      ${renderChatUI(state)}
+
+      ${myPlayerIndex === 0 ? `
+        <button class="btn btn-primary btn-full" onclick="window._rematch()">もう一度遊ぶ</button>
+        <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="location.reload()">最初の画面に戻る</button>
+        <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="location.href='../'">🏠 ゲーム一覧に戻る</button>
+      ` : `
+        <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px; text-align:center;"><span class="spinner"></span>ホストの操作を待機中</p>
+        <button class="btn btn-ghost btn-full" onclick="location.reload()">最初の画面に戻る</button>
+        <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="location.href='../'">🏠 ゲーム一覧に戻る</button>
+      `}
+    </div>
+  `);
+}
+
+window._rematch = function() {
+  if (myPlayerIndex !== 0) return;
+  if (currentState.mode === 'coop' || currentState.mode === 'vs-speed') {
+    const allColors = BALL_COLORS.slice(0, currentState.colorCount || 6).map(c => c.id);
+    const secret = [];
+    for(let i=0; i<(currentState.holeCount || 4); i++) {
+      const idx = Math.floor(Math.random() * allColors.length);
+      secret.push(allColors.splice(idx, 1)[0]);
+    }
+    update(ref(db, `games/hb/${roomCode}`), {
+      phase: "playing",
+      turn: 1,
+      systemSecret: secret,
+      activePlayerIndex: currentState.mode === 'coop' ? (Math.random() < 0.5 ? 0 : 1) : null,
+      history: false,
+      winner: -1,
+      guesses: false,
+      drafts: false
+    });
+  } else {
+    update(ref(db, `games/hb/${roomCode}`), {
+      phase: "setting", secretCodes: false, guesses: false, drafts: false, history: false, turn: 1, winner: -1
+    });
+  }
+};
+
+window._showRulebook = function() {
+  const overlay = document.createElement('div');
+  overlay.className = 'rulebook-overlay';
+  overlay.onclick = (e) => { if(e.target===overlay) overlay.remove(); };
+  overlay.innerHTML = `
+    <div class="rulebook-content">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <span style="font-family:'Jura', sans-serif;font-size:24px;color:var(--primary);font-weight:700;">RULEBOOK</span>
+        <button class="btn btn-ghost" style="padding:4px 12px;font-size:13px" onclick="this.closest('.rulebook-overlay').remove()">✕ 閉じる</button>
+      </div>
+      <div class="rule-section">
+        <h3>🎯 ゲームの目的</h3>
+        <div class="rule-row"><span>設定された「色の数」と「玉の数」の組み合わせを、論理的に推測して当てるゲームです。</span></div>
+      </div>
+      <div class="rule-section">
+        <h3>💡 ヒットとブロー</h3>
+        <div class="rule-row"><span>毎ターン予想を送信すると、相手の正解と比較して以下のヒントが返ってきます。</span></div>
+        <div class="rule-row"><span style="color:var(--primary);font-weight:bold;width:40px;flex-shrink:0;">Hit</span><span>「色」も「位置」も合っている数</span></div>
+        <div class="rule-row"><span style="color:var(--text-muted);font-weight:bold;width:40px;flex-shrink:0;">Blow</span><span>「色」は合っているが「位置」が違う数</span></div>
+      </div>
+      <div class="rule-section">
+        <h3>⚔️ 対戦モード</h3>
+        <div class="rule-row"><span>お互いに正解コードを設定し、同時に予想を行います。先に <strong>完全正解</strong> を達成した方の勝利です（最大8ターン）。</span></div>
+      </div>
+      <div class="rule-section">
+        <h3>🏁 早解き対戦モード</h3>
+        <div class="rule-row"><span>システムがランダムに決めた1つの正解コードを、お互いに同時に予想します。先に <strong>完全正解</strong> を達成した方の勝利です（最大8ターン）。</span></div>
+      </div>
+      <div class="rule-section">
+        <h3>🤝 協力モード</h3>
+        <div class="rule-row"><span>システムがランダムに決めた正解コードを、2人でターンを交互に交代しながら当てていきます（最大16ターン）。</span></div>
+      </div>
+      <button class="btn btn-primary btn-full" style="margin-top:16px" onclick="this.closest('.rulebook-overlay').remove()">閉じる</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+};
+
+</script>
+</body>
+</html>
