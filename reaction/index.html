@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>REACTION - 反射神経ゲーム</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f0f13;
+    --surface: #1a1a24;
+    --surface2: #242430;
+    --border: #333344;
+    --text: #ffffff;
+    --text-muted: #888899;
+    --primary: #00e5ff;
+    --primary-dark: #00b3cc;
+    --red: #ff3366;
+    --green: #00ff66;
+    --gold: #ffcc00;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans JP', sans-serif;
+    background: var(--bg); color: var(--text);
+    min-height: 100vh; font-size: 14px;
+    background-image: radial-gradient(circle at 50% 0%, #1a1a24 0%, #0f0f13 70%);
+  }
+
+  h1, .logo, .orbitron { font-family: 'Orbitron', sans-serif; }
+
+  #app { min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+  .screen { width: 100%; max-width: 500px; padding: 20px 16px 60px; }
+
+  .logo-main {
+    font-family: 'Orbitron', sans-serif; font-size: 48px; font-weight: 900;
+    color: var(--primary); text-shadow: 0 0 15px rgba(0,229,255,0.5);
+    text-align: center; margin-bottom: 4px; letter-spacing: 4px;
+  }
+  .logo-sub { text-align: center; color: var(--text-muted); font-size: 12px; letter-spacing: 4px; margin-bottom: 32px; font-family: 'Orbitron', sans-serif; }
+
+  .card { 
+    background: var(--surface); border: 1px solid var(--border); 
+    border-radius: var(--radius); padding: 20px; margin-bottom: 12px; 
+    box-shadow: 0 8px 30px rgba(0,0,0,0.4);
+  }
+  .card-title { font-size: 12px; color: var(--primary); margin-bottom: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 14px 24px; border: none; border-radius: 8px;
+    font-family: 'Noto Sans JP', sans-serif; font-size: 14px; font-weight: 700;
+    cursor: pointer; transition: all 0.2s; text-transform: uppercase; letter-spacing: 1px;
+  }
+  .btn:active { transform: scale(0.96); }
+  .btn-primary { background: var(--primary); color: #000; box-shadow: 0 0 15px rgba(0,229,255,0.3); }
+  .btn-primary:hover { background: #00ffff; box-shadow: 0 0 20px rgba(0,229,255,0.6); }
+  .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+  .btn-ghost:hover { background: var(--surface2); color: var(--text); border-color: var(--text-muted); }
+  .btn-full { width: 100%; margin-bottom: 8px; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  input[type=text] {
+    width: 100%; padding: 14px; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text); font-family: 'Noto Sans JP', sans-serif; font-size: 14px;
+    outline: none; transition: all 0.2s;
+  }
+  input[type=text]:focus { border-color: var(--primary); box-shadow: 0 0 8px rgba(0,229,255,0.3); }
+  label { display: block; font-size: 11px; color: var(--text-muted); margin-bottom: 6px; letter-spacing: 1px; }
+
+  .room-code {
+    font-family: 'Orbitron', monospace; font-size: 36px; letter-spacing: 10px; font-weight: 700;
+    color: var(--primary); text-shadow: 0 0 15px rgba(0,229,255,0.4); 
+    text-align: center; padding: 16px; background: var(--surface2);
+    border-radius: 8px; margin-bottom: 8px; border: 1px dashed var(--primary);
+  }
+
+  .player-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px dashed var(--border); }
+  .player-row:last-child { border-bottom: none; }
+  .avatar {
+    width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700; flex-shrink: 0; background: rgba(0,229,255,0.1); color: var(--primary); border: 1px solid var(--primary);
+  }
+
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.1); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* GAME SPECIFIC */
+  .score-board {
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px; margin-bottom: 16px;
+  }
+  .score-item { text-align: center; flex: 1; }
+  .score-name { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100px; margin: 0 auto 4px; }
+  .score-val { font-family: 'Orbitron', sans-serif; font-size: 28px; font-weight: 700; color: var(--gold); text-shadow: 0 0 10px rgba(255,204,0,0.3); }
+  .score-vs { font-family: 'Orbitron', sans-serif; font-size: 16px; color: var(--border); font-weight: 900; }
+
+  .status-bar { text-align: center; font-family: 'Orbitron', sans-serif; font-size: 14px; color: var(--primary); letter-spacing: 2px; margin-bottom: 16px; text-transform: uppercase; }
+
+  .tap-area {
+    width: 100%; height: 280px; border-radius: 16px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; user-select: none;
+    transition: background 0.1s, transform 0.1s, box-shadow 0.1s;
+    border: 4px solid transparent;
+  }
+  .tap-area:active { transform: scale(0.98); }
+  
+  .tap-area.red { 
+    background: var(--red); color: white; border-color: rgba(255,255,255,0.2);
+    box-shadow: 0 0 40px rgba(255,51,102,0.4), inset 0 0 20px rgba(0,0,0,0.2); 
+  }
+  .tap-area.green { 
+    background: var(--green); color: #000; border-color: rgba(255,255,255,0.5);
+    box-shadow: 0 0 50px rgba(0,255,102,0.6), inset 0 0 20px rgba(0,0,0,0.2); 
+  }
+  .tap-area.done { 
+    background: var(--surface2); color: var(--text-muted); border-color: var(--border); 
+    cursor: not-allowed; transform: none;
+  }
+  
+  .tap-text { font-family: 'Orbitron', sans-serif; font-size: 48px; font-weight: 900; letter-spacing: 4px; pointer-events: none; }
+  .tap-sub { font-size: 14px; opacity: 0.8; margin-top: 8px; font-family: 'Noto Sans JP', sans-serif; font-weight: normal; letter-spacing: 1px; pointer-events: none; }
+
+  .result-box { text-align: center; padding: 24px 16px; }
+  .result-winner { font-family: 'Orbitron', sans-serif; font-size: 32px; font-weight: 900; margin-bottom: 8px; }
+  .result-winner.win { color: var(--primary); text-shadow: 0 0 15px rgba(0,229,255,0.5); }
+  .result-winner.lose { color: var(--red); text-shadow: 0 0 15px rgba(255,51,102,0.5); }
+  .result-winner.draw { color: var(--text-muted); }
+
+  .time-table { width: 100%; margin-top: 20px; border-collapse: collapse; }
+  .time-table th, .time-table td { padding: 12px; border-bottom: 1px dashed var(--border); font-size: 14px; }
+  .time-table td.time { font-family: 'Orbitron', sans-serif; font-size: 18px; font-weight: 700; text-align: right; }
+  .time-table td.time.faster { color: var(--green); }
+  .time-table td.time.flying { color: var(--red); font-size: 14px; }
+
+  /* CHAT */
+  .toast-container { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 1000; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+  .toast { background: rgba(15,15,19,0.95); border: 1px solid var(--primary); color: white; padding: 12px 24px; border-radius: 8px; font-weight: bold; font-size: 14px; text-align: center; box-shadow: 0 4px 15px rgba(0,229,255,0.2); animation: toast-in 0.3s ease-out, toast-out 0.3s ease-in 2.5s forwards; white-space: nowrap; }
+  @keyframes toast-in { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes toast-out { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-20px); } }
+
+  .rulebook-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.85); z-index:100; display:flex; align-items:flex-start; justify-content:center; overflow-y:auto; padding:16px; }
+  .rulebook-content { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius); width:100%; max-width:500px; padding:24px; margin:auto; box-shadow: 0 0 30px rgba(0,229,255,0.15); }
+  .rule-section { margin-bottom:20px; }
+  .rule-section h3 { font-size:14px; color:var(--primary); border-bottom:1px dashed var(--primary); padding-bottom:6px; margin-bottom:10px; font-family:'Orbitron',sans-serif; letter-spacing:1px; }
+  .rule-row { display:flex; gap:10px; margin-bottom:8px; font-size:13px; line-height:1.6; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<!-- Firebase SDK -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, set, get, onValue, update, off, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+// ============================================================
+// 🔥 FIREBASE CONFIG
+// ============================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyCW7voDrgpBC0AabZ_O3o1ZDKJ9fqnKa7k",
+  authDomain: "grimoire-eclipse.firebaseapp.com",
+  databaseURL: "https://grimoire-eclipse-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "grimoire-eclipse",
+  storageBucket: "grimoire-eclipse.firebasestorage.app",
+  messagingSenderId: "429385058377",
+  appId: "1:429385058377:web:aaa1f22471f2bc938fd798",
+  measurementId: "G-T35ZKBRW05"
+};
+
+let app_fb, db, auth;
+let roomRef = null, roomListener = null;
+let myPlayerIndex = -1;
+let myName = "";
+let roomCode = "";
+let currentState = null;
+
+// Local Game State
+let localRoundState = 0;
+let localGameState = 'done'; // 'red', 'green', 'done'
+let signalTimeout = null;
+let startTime = 0;
+let lastToastTime = 0;
+
+try {
+  app_fb = initializeApp(firebaseConfig);
+  db = getDatabase(app_fb);
+  auth = getAuth(app_fb);
+  signInAnonymously(auth).catch(e => console.error("Auth Error", e));
+} catch(e) { console.error("Firebase Init Error", e); }
+
+const el = document.getElementById("app");
+function r(html) { el.innerHTML = html; }
+function h(s) { return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function generateRoomCode() { return String(Math.floor(1000 + Math.random() * 9000)); }
+
+function listenRoom(code, cb) {
+  if(!db) return;
+  if(roomListener) off(ref(db, `games/reaction/${roomCode}`));
+  roomRef = ref(db, `games/reaction/${code}`);
+  roomListener = onValue(roomRef, snap => {
+    if(snap.exists()) cb(snap.val());
+  });
+}
+
+showSetup();
+
+function showSetup() {
+  r(`
+    <div class="screen">
+      <div class="logo-main">REACTION</div>
+      <div class="logo-sub">SPEED REFLEX BATTLE</div>
+      
+      <div class="card">
+        <div class="card-title">🆕 CREATE ROOM (部屋を作る)</div>
+        <label>YOUR NAME (あなたの名前)</label>
+        <input type="text" id="nameInput" placeholder="例: スピードスター" value="${h(myName)}" maxlength="10" style="margin-bottom:16px">
+        <button class="btn btn-primary btn-full" onclick="window._createRoom()">CREATE ROOM</button>
+      </div>
+      
+      <div style="display:flex;align-items:center;gap:10px;font-size:12px;color:var(--text-muted);margin:16px 0;">
+        <div style="flex:1;height:1px;background:var(--border);"></div> または <div style="flex:1;height:1px;background:var(--border);"></div>
+      </div>
+      
+      <div class="card">
+        <div class="card-title">🚪 JOIN ROOM (部屋に入る)</div>
+        <label>YOUR NAME (あなたの名前)</label>
+        <input type="text" id="joinNameInput" placeholder="例: スピードスター" value="${h(myName)}" maxlength="10" style="margin-bottom:16px">
+        <label>ROOM CODE (4桁)</label>
+        <input type="text" id="roomInput" placeholder="0000" maxlength="4" inputmode="numeric" style="margin-bottom:16px;letter-spacing:8px;text-align:center;font-family:'Orbitron',sans-serif;font-size:24px;font-weight:700;">
+        <button class="btn btn-ghost btn-full" onclick="window._joinRoom()">JOIN ROOM</button>
+      </div>
+
+      <button class="btn btn-ghost btn-full" onclick="window._showRulebook()">📖 RULE (ルール確認)</button>
+      <button class="btn btn-ghost btn-full" style="margin-top:8px;border-color:transparent;" onclick="location.href='../'">🏠 RETURN TO PORTAL (一覧に戻る)</button>
+    </div>
+  `);
+}
+
+window._createRoom = async function() {
+  const name = document.getElementById("nameInput")?.value.trim();
+  if(!name) { alert("名前を入力してください"); return; }
+  myName = name; roomCode = generateRoomCode(); myPlayerIndex = 0;
+  const state = {
+    phase: "waiting",
+    players: [{name}],
+    round: 1,
+    scores: [0],
+    status: "ready", // 'ready', 'result'
+    delay: 0,
+    times: [null],
+    flyings: [false],
+    history: []
+  };
+  await set(ref(db, `games/reaction/${roomCode}`), state);
+  listenRoom(roomCode, onRoomUpdate);
+};
+
+window._joinRoom = async function() {
+  const name = (document.getElementById("joinNameInput")?.value || document.getElementById("nameInput")?.value).trim();
+  const code = (document.getElementById("roomInput")?.value||"").trim().toUpperCase();
+  if(!name) { alert("名前を入力してください"); return; }
+  if(code.length !== 4) { alert("正しい部屋コードを入力してください"); return; }
+  myName = name; roomCode = code;
+  const snap = await get(ref(db, `games/reaction/${code}`));
+  if(!snap.exists()) { alert("部屋が見つかりません"); return; }
+  const state = snap.val();
+  
+  state.players = state.players || [];
+  state.scores = state.scores || [];
+  state.times = state.times || [];
+  state.flyings = state.flyings || [];
+
+  const idx = state.players.findIndex(p => p.name === name);
+  if (idx !== -1) {
+    myPlayerIndex = idx;
+  } else {
+    if(state.players.length >= 10) { alert("この部屋はすでに満員です（最大10人）"); return; }
+    myPlayerIndex = state.players.length;
+    state.players.push({name});
+    state.scores.push(0);
+    state.times.push(null);
+    state.flyings.push(false);
+    await set(ref(db, `games/reaction/${code}`), state);
+  }
+  listenRoom(roomCode, onRoomUpdate);
+};
+
+function onRoomUpdate(state) {
+  currentState = state;
+
+  // チャット通知
+  const msgs = state.chatMessages || [];
+  if (msgs.length > 0) {
+    const lastMsg = msgs[msgs.length - 1];
+    if (lastMsg.timestamp > lastToastTime) {
+      lastToastTime = lastMsg.timestamp;
+      showToast(state.players[lastMsg.senderIndex].name, lastMsg.text);
+    }
+  }
+
+  // --- ゲーム進行ロジック（ホスト専用） ---
+  if (myPlayerIndex === 0 && state.phase === 'playing' && state.status === 'ready') {
+    const np = state.players.length;
+    // Firebaseの仕様で欠落した配列要素(undefined)を null/false に正規化する
+    const times = Array(np).fill(null).map((_, i) => (state.times && state.times[i] != null) ? state.times[i] : null);
+    const flyings = Array(np).fill(false).map((_, i) => (state.flyings && state.flyings[i] != null) ? state.flyings[i] : false);
+    
+    let allDone = true;
+    for(let i=0; i<np; i++) {
+      if (times[i] === null && !flyings[i]) { allDone = false; break; }
+    }
+    
+    if (allDone) {
+      let winner = -1;
+      let minTime = Infinity;
+      for (let i = 0; i < np; i++) {
+        if (!flyings[i] && times[i] !== null) {
+          if (times[i] < minTime) { minTime = times[i]; winner = i; }
+        }
+      }
+      
+      let tieCount = 0;
+      for (let i = 0; i < np; i++) {
+        if (!flyings[i] && times[i] === minTime) tieCount++;
+      }
+      if (tieCount > 1) winner = -1; // 同着は勝者なし
+
+      // Firebaseの配列オブジェクト化によるエラーを防ぐ
+      const scores = Array(np).fill(0).map((_, i) => (state.scores && state.scores[i] != null) ? state.scores[i] : 0);
+      if (winner !== -1) scores[winner]++;
+
+      const hist = Array.isArray(state.history) ? [...state.history] : (state.history ? Object.values(state.history) : []);
+      hist.push({
+        round: state.round,
+        times: times, flyings: flyings,
+        winner: winner
+      });
+
+      // 同時書き込みによる通信の競合を防ぐため、ホストの判定結果送信をわずかに遅延させる
+      setTimeout(() => {
+        update(ref(db, `games/reaction/${roomCode}`), {
+          phase: 'playing',
+          status: 'result',
+          scores: scores,
+          history: hist,
+          roundWinner: winner
+        });
+      }, 300);
+      return; // DB更新待ち
+    }
+  }
+
+  // --- クライアントのローカルタイマー管理 ---
+  if (state.phase === 'playing' && state.status === 'ready') {
+    const myDone = (state.times && state.times[myPlayerIndex] != null) || (state.flyings && state.flyings[myPlayerIndex]);
+    
+    if (myDone) {
+      localGameState = 'done';
+      if (signalTimeout) { clearTimeout(signalTimeout); signalTimeout = null; }
+    } else {
+      if (localRoundState !== state.round) {
+        // 新しいラウンド開始
+        localRoundState = state.round;
+        localGameState = 'red'; // WAIT
+        if (signalTimeout) clearTimeout(signalTimeout);
+        signalTimeout = setTimeout(() => {
+          localGameState = 'green'; // GO!
+          startTime = performance.now();
+          renderGame(currentState); // 画面を緑に更新
+        }, state.delay);
+      }
+    }
+  }
+
+  // 画面描画
+  const stateCopy = { ...state };
+  delete stateCopy.chatMessages;
+  const currentMainStateStr = JSON.stringify(stateCopy);
+  const needsFullRender = (window._previousMainStateStr !== currentMainStateStr);
+
+  if (needsFullRender) {
+    if(state.phase === "waiting") renderWaiting(state);
+    else if(state.phase === "playing" && state.status === "ready") renderGame(state);
+    else if(state.phase === "playing" && state.status === "result") renderResult(state);
+    else if(state.phase === "ended") renderEnded(state);
+
+    window._previousMainStateStr = currentMainStateStr;
+    setTimeout(() => {
+      const logBox = document.getElementById('chatLogBox');
+      if (logBox) logBox.scrollTop = logBox.scrollHeight;
+    }, 0);
+  } else {
+    const logBox = document.getElementById('chatLogBox');
+    if (logBox) {
+      const isAtBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight <= 20;
+      logBox.innerHTML = getChatLogHtml(state);
+      if (isAtBottom) logBox.scrollTop = logBox.scrollHeight;
+    }
+  }
+}
+
+function renderWaiting(state) {
+  const isHost = myPlayerIndex === 0;
+  const canStart = state.players.length >= 2;
+  r(`
+    <div class="screen">
+      <div class="logo-main">REACTION</div>
+      <div class="card">
+        <div class="card-title">ROOM CODE</div>
+        <div class="room-code">${h(roomCode)}</div>
+        <p style="text-align:center;font-size:12px;color:var(--text-muted);margin-bottom:16px">対戦相手にコードを教えましょう</p>
+        <div style="height:1px;background:var(--border);margin:16px 0"></div>
+        <div class="card-title">参加者 (${state.players.length} / 10人)</div>
+        ${state.players.map((p,i) => `
+          <div class="player-row">
+            <div class="avatar">P${i+1}</div>
+            <span style="flex:1; font-weight:700;">${h(p.name)}</span>
+            ${i===myPlayerIndex?'<span style="font-size:11px;color:var(--primary)">YOU</span>':""}
+          </div>
+        `).join("")}
+        <div style="margin-top:20px">
+          ${isHost && canStart ? `<button class="btn btn-primary btn-full" onclick="window._startGame()">GAME START (${state.players.length}人)</button>` : ""}
+          ${!canStart ? `<p style="text-align:center;font-size:12px;color:var(--text-muted)"><span class="spinner"></span>相手の参加を待っています(最大10人)</p>` : ""}
+          ${canStart && !isHost ? `<p style="text-align:center;font-size:12px;color:var(--text-muted)"><span class="spinner"></span>ホストの開始操作を待っています</p>` : ""}
+          <button class="btn btn-ghost btn-full" style="margin-top:16px" onclick="if(confirm('ゲームを終了して一覧に戻りますか？')) location.href='../'">🚪 退出する</button>
+        </div>
+      </div>
+      ${renderChatUI(state)}
+    </div>
+  `);
+}
+
+window._startGame = function() {
+  if (myPlayerIndex !== 0) return;
+  const np = currentState.players.length;
+  update(ref(db, `games/reaction/${roomCode}`), {
+    phase: "playing",
+    status: "ready",
+    round: 1,
+    scores: Array(np).fill(0),
+    delay: Math.floor(Math.random() * 4000) + 2000, // 2秒〜6秒
+    times: Array(np).fill(null),
+    flyings: Array(np).fill(false),
+    history: []
+  });
+};
+
+function renderGame(state) {
+  const np = state.players.length;
+  let doneCount = 0;
+  for(let i=0; i<np; i++) {
+    if ((state.times && state.times[i] != null) || (state.flyings && state.flyings[i])) doneCount++;
+  }
+  const allDone = doneCount === np;
+  const maxScore = Math.max(...state.scores);
+  
+  let areaClass = localGameState;
+  let mainText = "";
+  let subText = "";
+  
+  if (localGameState === 'red') {
+    mainText = "WAIT...";
+    subText = "緑になったらタップ！フライング注意";
+  } else if (localGameState === 'green') {
+    mainText = "PUSH!";
+    subText = "今だ！タップしろ！";
+  } else {
+    mainText = "DONE";
+    subText = allDone ? "判定中..." : `他のプレイヤーを待っています (${doneCount}/${np})`;
+  }
+
+  r(`
+    <div class="screen">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div class="orbitron" style="font-size:20px;font-weight:700;color:var(--primary);">ROUND ${state.round} <span style="font-size:12px;color:var(--text-muted)">/ 先に3勝</span></div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="window._showRulebook()">📖 RULE</button>
+          <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="if(confirm('ゲームを終了して一覧に戻りますか？')) location.href='../'">🚪 退出</button>
+        </div>
+      </div>
+
+      <div class="score-board" style="display:flex; flex-wrap:wrap; gap:8px; padding:12px;">
+        ${state.players.map((p,i) => {
+          const isTop = state.scores[i] === maxScore && maxScore > 0;
+          return `
+            <div class="score-item" style="flex:1; min-width:60px; background:var(--surface2); padding:8px; border-radius:8px; border:1px solid ${i===myPlayerIndex?'var(--primary)':'transparent'}">
+              <div class="score-name" style="color:${i===myPlayerIndex?'var(--primary)':'var(--text-muted)'}; margin:0 auto 4px;">${isTop ? '👑 ' : ''}${h(p.name)}</div>
+              <div class="score-val" style="font-size:20px; text-shadow:${i===myPlayerIndex?'0 0 10px rgba(0,229,255,0.3)':'none'}; color:${i===myPlayerIndex?'var(--gold)':'var(--text)'}">${state.scores[i]}</div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+
+      <div class="status-bar">
+        ${allDone ? `<span style="color:var(--gold);">全員タップ完了！判定中...</span>` : `<span style="color:var(--text-muted);"><span class="spinner"></span> 待機中... (${doneCount}/${np})</span>`}
+      </div>
+
+      <div id="tapArea" class="tap-area ${areaClass}" onmousedown="window._handleTap()" ontouchstart="window._handleTap(event)">
+        <div style="text-align:center;">
+          <div class="tap-text">${mainText}</div>
+          <div class="tap-sub">${subText}</div>
+        </div>
+      </div>
+
+      ${renderChatUI(state)}
+    </div>
+  `);
+}
+
+window._handleTap = function(e) {
+  if (e) e.preventDefault(); // スマホのダブルタップ拡大などを防ぐ
+  if (localGameState === 'done') return;
+  if (!currentState || currentState.phase !== 'playing' || currentState.status !== 'ready') return;
+
+  if (localGameState === 'red') {
+    // フライング
+    if (signalTimeout) { clearTimeout(signalTimeout); signalTimeout = null; }
+    localGameState = 'done';
+    update(ref(db, `games/reaction/${roomCode}`), { [`flyings/${myPlayerIndex}`]: true, [`times/${myPlayerIndex}`]: 99999 });
+    renderGame(currentState); // 画面をDONEに更新
+  } else if (localGameState === 'green') {
+    // 正常タップ
+    const rt = Math.floor(performance.now() - startTime);
+    localGameState = 'done';
+    update(ref(db, `games/reaction/${roomCode}`), { [`flyings/${myPlayerIndex}`]: false, [`times/${myPlayerIndex}`]: rt });
+    renderGame(currentState); // 画面をDONEに更新
+  }
+};
+
+function renderResult(state) {
+  const historyArray = Array.isArray(state.history) ? state.history : Object.values(state.history || {});
+  const hist = historyArray[historyArray.length - 1];
+  const np = state.players.length;
+
+  const results = [];
+  for(let i=0; i<np; i++) {
+    results.push({
+      index: i, name: state.players[i].name,
+      time: hist.times[i], flying: hist.flyings[i],
+      isWinner: state.roundWinner === i
+    });
+  }
+  
+  results.sort((a,b) => {
+    if (a.flying && !b.flying) return 1;
+    if (!a.flying && b.flying) return -1;
+    if (a.flying && b.flying) return 0;
+    return a.time - b.time;
+  });
+
+  let resultClass = "";
+  let resultText = "";
+  if (state.roundWinner === -1) { resultClass = "draw"; resultText = "DRAW (勝者なし)"; }
+  else if (state.roundWinner === myPlayerIndex) { resultClass = "win"; resultText = "WIN!"; }
+  else { resultClass = "lose"; resultText = `${h(state.players[state.roundWinner].name)} WIN`; }
+
+  const tableRows = results.map((r, rank) => {
+    const isMe = r.index === myPlayerIndex;
+    const timeText = r.flying ? 'フライング' : `${r.time} ms`;
+    const tdClass = r.flying ? 'flying' : (r.isWinner ? 'faster' : '');
+    const rankText = r.flying ? '❌' : (rank === 0 && r.isWinner ? '🥇' : `${rank+1}`);
+    return `
+      <tr style="${isMe ? 'background:rgba(0,229,255,0.1);' : ''}">
+        <td style="width:40px; text-align:center;">${rankText}</td>
+        <td style="text-align:left; font-weight:${isMe?'700':'400'}; color:${isMe?'var(--primary)':'var(--text)'}">${h(r.name)}${isMe?' (YOU)':''}</td>
+        <td class="time ${tdClass}">${timeText}</td>
+      </tr>
+    `;
+  }).join('');
+
+  r(`
+    <div class="screen">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <div class="orbitron" style="font-size:20px;font-weight:700;color:var(--primary);">ROUND ${state.round} RESULT</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="window._showRulebook()">📖 RULE</button>
+          <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="if(confirm('ゲームを終了して一覧に戻りますか？')) location.href='../'">🚪 退出</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="result-box">
+          <div class="result-winner ${resultClass}">${resultText}</div>
+
+          <table class="time-table">
+            <tr>
+              <th style="color:var(--text-muted); text-align:center;">RANK</th>
+              <th style="color:var(--text-muted); text-align:left;">PLAYER</th>
+              <th style="color:var(--text-muted); text-align:right;">TIME</th>
+            </tr>
+            ${tableRows}
+          </table>
+        </div>
+
+        <div style="margin-top: 16px;">
+          ${myPlayerIndex === 0 
+            ? `<button class="btn btn-primary btn-full" onclick="window._nextRound()">NEXT ROUND</button>`
+            : `<p style="text-align:center;font-size:12px;color:var(--text-muted)"><span class="spinner"></span>ホストが次へ進めるのを待っています</p>`
+          }
+        </div>
+      </div>
+      ${renderChatUI(state)}
+    </div>
+  `);
+}
+
+window._nextRound = function() {
+  if (myPlayerIndex !== 0) return;
+  const np = currentState.players.length;
+  // 3勝した場合はここで最終リザルトへ移行
+  const isEnd = currentState.scores.some(s => s >= 3);
+  if (isEnd) {
+    update(ref(db, `games/reaction/${roomCode}`), { phase: 'ended' });
+  } else {
+    update(ref(db, `games/reaction/${roomCode}`), {
+      status: 'ready',
+      round: currentState.round + 1,
+      delay: Math.floor(Math.random() * 4000) + 2000,
+      times: Array(np).fill(null),
+      flyings: Array(np).fill(false)
+    });
+  }
+};
+
+function renderEnded(state) {
+  const np = state.players.length;
+  const results = state.players.map((p,i) => ({ index: i, name: p.name, score: state.scores[i] }));
+  results.sort((a,b) => b.score - a.score);
+  
+  const topScore = results[0].score;
+  const isWin = topScore >= 3 && results[0].index === myPlayerIndex;
+
+  let title = isWin ? "YOU WIN!" : "GAME OVER";
+  let tColor = isWin ? "var(--primary)" : "var(--text)";
+  
+  const listHtml = results.map((r, i) => `
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid var(--border); ${r.index===myPlayerIndex?'background:rgba(0,229,255,0.1);':''}">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <span style="font-size:18px;">${i===0?'👑':i===1?'🥈':i===2?'🥉':i+1}</span>
+        <span style="font-weight:${r.index===myPlayerIndex?'700':'400'}; color:${r.index===myPlayerIndex?'var(--primary)':'var(--text)'}">${h(r.name)}${r.index===myPlayerIndex?' (YOU)':''}</span>
+      </div>
+      <div class="orbitron" style="font-size:24px; font-weight:700; color:${i===0?'var(--gold)':'var(--text)'}">${r.score} <span style="font-size:12px;color:var(--text-muted)">pt</span></div>
+    </div>
+  `).join('');
+
+  r(`
+    <div class="screen">
+      <div style="text-align:center;font-family:'Orbitron',sans-serif;font-size:48px;font-weight:900;color:${tColor};margin-bottom:8px;text-shadow:0 0 20px ${tColor}66">${title}</div>
+      <p style="text-align:center;color:var(--text-muted);margin-bottom:24px;font-family:'Orbitron',sans-serif; letter-spacing:2px;">MATCH FINISHED</p>
+      
+      <div class="card">
+        <div class="card-title" style="text-align:center;">FINAL RANKING</div>
+        <div style="display:flex; flex-direction:column;">
+          ${listHtml}
+        </div>
+      </div>
+      
+      ${renderChatUI(state)}
+
+      <div style="margin-top: 16px;">
+        ${myPlayerIndex === 0 ? `
+          <button class="btn btn-primary btn-full" onclick="window._startGame()">REMATCH (もう一度遊ぶ)</button>
+          <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="location.reload()">LEAVE (最初の画面に戻る)</button>
+          <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="location.href='../'">🏠 EXIT (一覧に戻る)</button>
+        ` : `
+          <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px; text-align:center;"><span class="spinner"></span>ホストの操作を待機中</p>
+          <button class="btn btn-ghost btn-full" onclick="location.reload()">LEAVE (最初の画面に戻る)</button>
+          <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="location.href='../'">🏠 EXIT (一覧に戻る)</button>
+        `}
+      </div>
+    </div>
+  `);
+}
+
+function showToast(name, text) {
+  let container = document.getElementById('toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    container.className = 'toast-container';
+    document.body.appendChild(container);
+  }
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.innerHTML = `<span style="color:var(--primary);margin-right:8px;">${h(name)}:</span>${h(text)}`;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+function getChatLogHtml(state) {
+  if (!state) return '';
+  return (state.chatMessages || []).map(m => {
+    const isMe = m.senderIndex === myPlayerIndex;
+    return `<div style="text-align: ${isMe ? 'right' : 'left'};">
+      <div style="display: inline-block; text-align: left;">
+        <div style="font-size: 10px; color: var(--text-muted); margin-bottom: 2px; text-align: ${isMe ? 'right' : 'left'};">${h(state.players[m.senderIndex].name)}</div>
+        <div style="background: ${isMe ? 'rgba(0,229,255,0.1)' : 'var(--surface2)'}; color: ${isMe ? 'var(--primary)' : 'var(--text)'}; border: 1px solid ${isMe ? 'var(--primary)' : 'var(--border)'}; padding: 6px 12px; border-radius: 8px; font-size: 12px; display: inline-block; max-width: 100%; word-break: break-all;">${h(m.text)}</div>
+      </div>
+    </div>`;
+  }).join('') + (!(state.chatMessages && state.chatMessages.length > 0) ? '<div style="text-align:center; color:var(--text-muted); font-size:11px; margin-top: 40px; font-family:\'Orbitron\', sans-serif;">NO MESSAGES</div>' : '');
+}
+
+function renderChatUI(state) {
+  if (!state) return '';
+  return `
+    <div style="margin-top:16px; padding-top:16px; border-top:1px dashed var(--border);">
+      <div id="chatLogBox" style="height: 140px; overflow-y: auto; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px;">
+        ${getChatLogHtml(state)}
+      </div>
+      <div style="display:flex; gap:8px; margin-bottom: 12px;">
+        <input type="text" id="chatInput" placeholder="MESSAGE..." maxlength="30" onkeypress="if(event.key==='Enter') window._sendChat()" style="margin-bottom:0;">
+        <button class="btn btn-primary" style="padding: 0 16px; flex-shrink: 0;" onclick="window._sendChat()">SEND</button>
+      </div>
+      <div style="display:flex; justify-content:center; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-ghost" style="padding:8px 16px; font-size:16px;" onclick="window._sendStamp('👍 ナイス！')">👍</button>
+        <button class="btn btn-ghost" style="padding:8px 16px; font-size:16px;" onclick="window._sendStamp('🤔 うーん...')">🤔</button>
+        <button class="btn btn-ghost" style="padding:8px 16px; font-size:16px;" onclick="window._sendStamp('💡 わかった！')">💡</button>
+        <button class="btn btn-ghost" style="padding:8px 16px; font-size:16px;" onclick="window._sendStamp('🙏 おまかせ！')">🙏</button>
+        <button class="btn btn-ghost" style="padding:8px 16px; font-size:16px;" onclick="window._sendStamp('💦 ごめん！')">💦</button>
+      </div>
+    </div>
+  `;
+}
+
+window._sendStamp = function(text) {
+  if (!roomCode || !currentState) return;
+  runTransaction(ref(db, `games/reaction/${roomCode}/chatMessages`), (messages) => {
+    const newMessages = messages || [];
+    newMessages.push({ senderIndex: myPlayerIndex, text: text, timestamp: Date.now() });
+    if (newMessages.length > 50) newMessages.shift();
+    return newMessages;
+  });
+};
+
+window._sendChat = function() {
+  const input = document.getElementById('chatInput');
+  if (!input || !input.value.trim() || !roomCode || !currentState) return;
+  const text = input.value.trim();
+  input.value = '';
+  input.focus();
+  runTransaction(ref(db, `games/reaction/${roomCode}/chatMessages`), (messages) => {
+    const newMessages = messages || [];
+    newMessages.push({ senderIndex: myPlayerIndex, text: text, timestamp: Date.now() });
+    if (newMessages.length > 50) newMessages.shift();
+    return newMessages;
+  });
+};
+
+window._showRulebook = function() {
+  const overlay = document.createElement('div');
+  overlay.className = 'rulebook-overlay';
+  overlay.onclick = (e) => { if(e.target===overlay) overlay.remove(); };
+  overlay.innerHTML = `
+    <div class="rulebook-content">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <span style="font-family:'Orbitron',sans-serif;font-size:24px;color:var(--primary);font-weight:900;">RULEBOOK</span>
+        <button class="btn btn-ghost" style="padding:4px 12px;font-size:13px" onclick="this.closest('.rulebook-overlay').remove()">✕ CLOSE</button>
+      </div>
+
+      <div class="rule-section">
+        <h3>⚡ 遊び方</h3>
+        <div class="rule-row"><span>1. ラウンドが始まると、画面の大きな枠が<strong style="color:var(--red)">赤色</strong>になります。</span></div>
+        <div class="rule-row"><span>2. ランダムな時間（2〜6秒）が経過すると、画面が<strong style="color:var(--green)">緑色</strong>に変わります。</span></div>
+        <div class="rule-row"><span>3. 緑色になったら、<strong style="color:var(--primary)">誰よりも早く画面をタップ</strong>してください！</span></div>
+        <div class="rule-row"><span>4. 一番早くタップできた1名に+1pt入ります。先に<strong>3pt</strong>獲得したプレイヤーが最終勝利となります。</span></div>
+      </div>
+
+      <div class="rule-section">
+        <h3>⚠️ フライング（お手付き）</h3>
+        <div class="rule-row"><span>画面が<strong style="color:var(--red)">赤色</strong>の間にタップしてしまうと「フライング」となり、<strong>そのラウンドは失格（ポイント獲得不可）</strong>になります。</span></div>
+        <div class="rule-row"><span style="font-size:12px;color:var(--text-muted)">※ 全員がフライングした場合は勝者なし（引き分け）になります。</span></div>
+      </div>
+
+      <button class="btn btn-primary btn-full" style="margin-top:16px" onclick="this.closest('.rulebook-overlay').remove()">CLOSE</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+};
+</script>
+</body>
+</html>

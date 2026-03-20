@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="ja">
+ <head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>
+   Games
+  </title>
+  <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&amp;family=Noto+Sans+JP:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+  <style>
+   * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans JP', sans-serif;
+    background: #0e0e18;
+    color: #f0f0f0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 16px;
+  }
+  h1 {
+    font-family: 'Black Han Sans', sans-serif;
+    font-size: 32px;
+    letter-spacing: 4px;
+    background: linear-gradient(135deg, #ffd700, #ff6b35);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 8px;
+    text-align: center;
+  }
+  .subtitle {
+    font-size: 12px;
+    color: #555;
+    letter-spacing: 2px;
+    margin-bottom: 48px;
+    text-align: center;
+  }
+  .category {
+    width: 100%;
+    max-width: 600px;
+    margin-bottom: 40px;
+  }
+  .category-title {
+    font-family: 'Black Han Sans', sans-serif;
+    font-size: 22px;
+    color: #e0e0e0;
+    letter-spacing: 2px;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+  .games {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+  }
+  .game-card {
+    background: linear-gradient(145deg, #1a1a2e 0%, #161625 100%);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 24px 20px;
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  }
+  .game-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: linear-gradient(135deg, rgba(255,215,0,0.08), rgba(255,107,53,0.08));
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    z-index: 0;
+  }
+  .game-card > * {
+    position: relative;
+    z-index: 1;
+  }
+  .game-card:hover {
+    border-color: rgba(255,215,0,0.5);
+    transform: translateY(-6px);
+    box-shadow: 0 12px 24px rgba(0,0,0,0.4), 0 0 15px rgba(255,215,0,0.15);
+  }
+  .game-card:hover::before {
+    opacity: 1;
+  }
+  .game-icon {
+    font-size: 42px;
+    margin-bottom: 4px;
+    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));
+    transition: transform 0.3s ease;
+  }
+  .game-card:hover .game-icon {
+    transform: scale(1.1) rotate(-5deg);
+  }
+  .game-title {
+    font-family: 'Black Han Sans', sans-serif;
+    font-size: 20px;
+    color: #ffd700;
+    letter-spacing: 1px;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  }
+  .game-desc {
+    font-size: 13px;
+    color: #aaa;
+    line-height: 1.6;
+    flex-grow: 1;
+  }
+  .game-tag {
+    display: inline-block;
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: #bbb;
+    margin-top: 8px;
+    width: fit-content;
+    font-weight: 500;
+    transition: all 0.3s ease;
+  }
+  .game-card:hover .game-tag {
+    background: rgba(255,215,0,0.1);
+    color: #ffd700;
+    border-color: rgba(255,215,0,0.3);
+  }
+  .filter-container {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 32px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .filter-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #e0e0e0;
+    padding: 8px 16px;
+    border-radius: 24px;
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+  .filter-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+  .filter-btn.active {
+    background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,107,53,0.2));
+    border-color: rgba(255,215,0,0.5);
+    color: #ffd700;
+  }
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .fade-in {
+    animation: fadeIn 0.4s ease forwards;
+  }
+  </style>
+ </head>
+ <body>
+  <h1>
+   GAMES
+  </h1>
+  <p class="subtitle">
+   非公式ファンメイド
+  </p>
+  <div class="filter-container">
+   <button class="filter-btn active" data-filter="all">
+    全て
+   </button>
+   <button class="filter-btn" data-filter="cat-2p">
+    👥 2人用
+   </button>
+   <button class="filter-btn" data-filter="cat-multi">
+    👪 多人数対応
+   </button>
+  </div>
+  <div class="category fade-in" id="cat-2p">
+   <h2 class="category-title">
+    👥 2人用
+   </h2>
+   <div class="games">
+    <a class="game-card" href="./number-card-game/">
+     <span class="game-icon">
+      🔢
+     </span>
+     <span class="game-title">
+      NUMBER CARD GAME
+     </span>
+     <span class="game-desc">
+      1〜9のカードで戦う心理戦。相手の色の残り枚数だけを手がかりに、先に5勝を目指す推理カードゲーム。
+     </span>
+     <span class="game-tag">
+      2人 / オンライン対戦
+     </span>
+    </a>
+   </div>
+  </div>
+  <div class="category fade-in" id="cat-multi">
+   <h2 class="category-title">
+    👪 多人数対応
+   </h2>
+   <div class="games">
+    <a class="game-card" href="./reaction/">
+     <span class="game-icon">
+      ⚡
+     </span>
+     <span class="game-title">
+      REACTION
+     </span>
+     <span class="game-desc">
+      画面が緑になった瞬間にタップ！純粋な反射神経とスピードを競う早押し対戦ゲーム。
+     </span>
+     <span class="game-tag">
+      2〜10人 / オンライン対戦 / 早押し
+     </span>
+    </a>
+   </div>
+  </div>
+  <script>
+   const filterBtns = document.querySelectorAll('.filter-btn');
+    const categories = document.querySelectorAll('.category');
+
+    filterBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        filterBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        const filter = btn.getAttribute('data-filter');
+
+        categories.forEach(cat => {
+          cat.classList.remove('fade-in');
+          if (filter === 'all' || cat.id === filter) {
+            cat.style.display = 'block';
+            void cat.offsetWidth; // リフローを強制してアニメーションを再実行
+            cat.classList.add('fade-in');
+          } else {
+            cat.style.display = 'none';
+          }
+        });
+      });
+    });
+  </script>
+ </body>
+</html>

@@ -1,0 +1,1321 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>数心乱戦 — オンラインカードゲーム</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@300;400;700&family=Zen+Old+Mincho:wght@400;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --ink:#1a1208;--washi:#f5f0e8;--light-washi:#faf7f2;
+  --vermillion:#b5291e;--cobalt:#1a3a6b;--gold:#9a7020;
+  --muted:#7a6848;--border:#d4c9a8;--surface:#f0ebe0;
+  --green:#1a6b3a;--red-bg:#fde8e8;--blue-bg:#e8eef8;
+}
+html,body{height:100%;background:var(--washi);color:var(--ink);font-family:'Noto Serif JP',serif}
+#app{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:1rem}
+.screen{width:100%;max-width:520px}
+.fade-in{animation:fadeIn .4s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.game-title{font-family:'Zen Old Mincho',serif;font-size:36px;letter-spacing:6px;text-align:center;line-height:1.1}
+.game-sub{font-size:12px;color:var(--muted);letter-spacing:3px;text-align:center;margin-top:4px;margin-bottom:2rem}
+.panel{background:var(--light-washi);border:1px solid var(--border);border-radius:12px;padding:1.5rem;margin-bottom:1rem}
+.panel-title{font-size:12px;color:var(--gold);letter-spacing:2px;border-left:3px solid var(--gold);padding-left:8px;margin-bottom:1rem}
+input[type=text]{width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-family:'Noto Serif JP',serif;font-size:14px;background:var(--washi);color:var(--ink);outline:none;transition:border .2s}
+input[type=text]:focus{border-color:var(--gold)}
+select{width:auto;padding:5px 10px;border:1px solid var(--border);border-radius:6px;font-family:'Noto Serif JP',serif;font-size:12px;background:var(--washi);color:var(--ink);outline:none;cursor:pointer}
+.btn{display:block;width:100%;padding:12px;border:1.5px solid var(--ink);border-radius:8px;font-family:'Zen Old Mincho',serif;font-size:14px;letter-spacing:2px;cursor:pointer;transition:all .2s;text-align:center}
+.btn-primary{background:var(--ink);color:var(--washi)}.btn-primary:hover{background:#2e2010}
+.btn-secondary{background:transparent;color:var(--ink)}.btn-secondary:hover{background:var(--surface)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-sm{padding:7px 16px;width:auto;font-size:13px;display:inline-block;border-radius:6px}
+.gap{margin-top:.6rem}
+.config-row{margin-bottom:.8rem}
+.config-row label{font-size:12px;color:var(--muted);display:block;margin-bottom:4px;letter-spacing:1px}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)}
+.toggle-row:last-child{border-bottom:none}
+.toggle-label{font-size:13px;color:var(--ink)}
+.toggle-desc{font-size:11px;color:var(--muted);margin-top:2px}
+.toggle{position:relative;width:40px;height:22px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-slider{position:absolute;inset:0;background:var(--border);border-radius:22px;cursor:pointer;transition:.3s}
+.toggle-slider:before{content:'';position:absolute;width:16px;height:16px;left:3px;bottom:3px;background:white;border-radius:50%;transition:.3s}
+.toggle input:checked+.toggle-slider{background:var(--gold)}
+.toggle input:checked+.toggle-slider:before{transform:translateX(18px)}
+.room-box{background:var(--surface);border:1.5px dashed var(--gold);border-radius:8px;padding:1rem;text-align:center;margin-bottom:1rem}
+.room-id{font-family:'Zen Old Mincho',serif;font-size:28px;letter-spacing:8px;color:var(--ink)}
+.room-hint{font-size:12px;color:var(--muted);margin-top:4px}
+.copy-btn{padding:6px 18px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--washi);cursor:pointer;font-family:'Noto Serif JP',serif;letter-spacing:1px;transition:all .2s}
+.copy-btn:hover{background:var(--surface)}
+.copy-btn.dark{background:var(--ink);color:var(--washi);border-color:var(--ink)}
+.waiting-anim{display:flex;gap:6px;justify-content:center;margin-top:.6rem}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--gold);animation:pulse 1.4s ease infinite}
+.dot:nth-child(2){animation-delay:.2s}.dot:nth-child(3){animation-delay:.4s}
+@keyframes pulse{0%,80%,100%{transform:scale(0);opacity:.3}40%{transform:scale(1);opacity:1}}
+.score-bar{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--surface);border-radius:8px;margin-bottom:.6rem;border:1px solid var(--border)}
+.score-side{text-align:center;min-width:80px}
+.score-name{font-size:11px;color:var(--muted);letter-spacing:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px}
+.score-num{font-family:'Zen Old Mincho',serif;font-size:28px;line-height:1}
+.score-wins{font-size:11px;color:var(--muted);margin-top:2px}
+.score-divider{font-size:11px;color:var(--border)}
+.round-badge{text-align:center;font-size:11px;color:var(--muted);letter-spacing:2px;margin-bottom:.6rem;display:flex;align-items:center;justify-content:center;gap:10px}
+.opp-info{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+.color-pill{padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;letter-spacing:1px}
+.pill-red{background:var(--red-bg);color:var(--vermillion);border:1px solid var(--vermillion)}
+.pill-blue{background:var(--blue-bg);color:var(--cobalt);border:1px solid var(--cobalt)}
+.hand{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:.8rem}
+.card{width:56px;height:80px;border-radius:8px;border:2px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;background:var(--washi);user-select:none}
+.card.red{border-color:var(--vermillion);color:var(--vermillion)}
+.card.blue{border-color:var(--cobalt);color:var(--cobalt)}
+.card .num{font-family:'Zen Old Mincho',serif;font-size:24px;font-weight:700;line-height:1}
+.card .dot{font-size:9px;margin-top:2px;opacity:.7}
+.card:hover:not(.disabled):not(.selected):not(.restricted){transform:translateY(-6px);box-shadow:0 8px 20px rgba(0,0,0,.12)}
+.card.selected{transform:translateY(-10px) scale(1.05);box-shadow:0 10px 24px rgba(0,0,0,.18)}
+.card.selected.red{background:var(--red-bg);border-width:2.5px}
+.card.selected.blue{background:var(--blue-bg);border-width:2.5px}
+.card.disabled{opacity:.35;cursor:not-allowed;transform:none!important}
+.card.restricted{opacity:.25;cursor:not-allowed;transform:none!important}
+.confirm-area{text-align:center;min-height:60px;margin-bottom:.6rem}
+.selected-preview{font-size:13px;color:var(--muted);margin-bottom:.5rem;letter-spacing:1px}
+.waiting-msg{font-size:13px;color:var(--gold);letter-spacing:1px;margin-top:.4rem}
+.result-banner{padding:.8rem;border-radius:10px;text-align:center;margin-bottom:.8rem;animation:fadeIn .3s ease}
+.result-win{background:#e8f5ec;border:1.5px solid var(--green);color:var(--green)}
+.result-lose{background:var(--red-bg);border:1.5px solid var(--vermillion);color:var(--vermillion)}
+.result-draw{background:var(--surface);border:1.5px solid var(--border);color:var(--muted)}
+.result-main{font-family:'Zen Old Mincho',serif;font-size:28px;letter-spacing:4px}
+.result-detail{font-size:12px;margin-top:2px;opacity:.8}
+.log{max-height:90px;overflow-y:auto;margin-bottom:.6rem}
+.log-row{display:flex;justify-content:space-between;align-items:center;padding:3px 8px;font-size:11px;border-radius:4px;margin-bottom:2px}
+.log-row:nth-child(odd){background:var(--surface)}
+.log-round{color:var(--muted)}.log-res.win{color:var(--green);font-weight:700}.log-res.lose{color:var(--vermillion);font-weight:700}.log-res.draw{color:var(--muted)}
+.final{text-align:center;padding:2rem 1rem}
+.final-title{font-family:'Zen Old Mincho',serif;font-size:40px;letter-spacing:6px;margin-bottom:.5rem}
+.final-win{color:var(--gold)}.final-lose{color:var(--vermillion)}
+.final-sub{font-size:13px;color:var(--muted);letter-spacing:2px;margin-bottom:2rem}
+.final-scores{display:flex;gap:1.5rem;justify-content:center;margin-bottom:1.5rem}
+.final-score-item .label{font-size:11px;color:var(--muted);letter-spacing:1px}
+.final-score-item .val{font-family:'Zen Old Mincho',serif;font-size:36px}
+.timer-wrap{margin-bottom:.6rem}
+.timer-bar-bg{height:5px;background:var(--border);border-radius:3px;overflow:hidden}
+.timer-bar{height:100%;background:var(--gold);transition:width 1s linear;border-radius:3px}
+.timer-bar.danger{background:var(--vermillion)}
+.timer-num{font-size:11px;color:var(--muted);text-align:right;margin-top:2px}
+.ability-area{margin-bottom:.8rem;text-align:center}
+.ability-btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:7px;border:1.5px solid var(--gold);background:transparent;color:var(--gold);font-family:'Noto Serif JP',serif;font-size:12px;cursor:pointer;transition:all .2s;letter-spacing:1px}
+.ability-btn:hover:not(:disabled){background:#fef9ec}
+.ability-btn:disabled{opacity:.3;cursor:not-allowed;border-color:var(--border);color:var(--muted)}
+.ability-btn.used{border-color:var(--border);color:var(--muted);text-decoration:line-through}
+.restrict-toggle{display:flex;align-items:center;gap:8px;justify-content:center;margin:.4rem 0;padding:7px 14px;border-radius:8px;border:1.5px dashed var(--border);background:transparent;cursor:pointer;transition:all .2s;font-size:12px;color:var(--muted);font-family:'Noto Serif JP',serif;width:100%}
+.restrict-toggle.active-red{border-color:var(--vermillion);color:var(--vermillion);background:var(--red-bg)}
+.restrict-toggle.active-blue{border-color:var(--cobalt);color:var(--cobalt);background:var(--blue-bg)}
+.restrict-notice{border-radius:8px;padding:7px 12px;font-size:12px;text-align:center;margin-bottom:.6rem;animation:fadeIn .3s ease}
+.restrict-notice.red{background:var(--red-bg);border:1px solid var(--vermillion);color:var(--vermillion)}
+.restrict-notice.blue{background:var(--blue-bg);border:1px solid var(--cobalt);color:var(--cobalt)}
+.modal-overlay{position:fixed;inset:0;background:rgba(26,18,8,.6);z-index:1000;display:flex;align-items:center;justify-content:center;padding:1rem;animation:fadeIn .2s ease}
+.modal{background:var(--washi);border-radius:14px;width:100%;max-width:680px;max-height:90vh;overflow-y:auto;border:1px solid var(--border)}
+.modal-sm{max-width:360px}
+.modal-header{display:flex;align-items:center;justify-content:space-between;padding:.7rem 1.25rem;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--washi);z-index:1}
+.modal-title{font-family:'Zen Old Mincho',serif;font-size:18px;letter-spacing:4px}
+.modal-close{width:28px;height:28px;border-radius:50%;border:1px solid var(--border);background:transparent;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;color:var(--muted);transition:all .2s}
+.modal-close:hover{background:var(--surface)}
+.modal-body{padding:1rem 1.25rem;display:grid;grid-template-columns:1fr 1fr;gap:.8rem 1.5rem}
+.modal-body-single{padding:1.25rem}
+.rule-section{margin-bottom:0}
+.rule-section.full{grid-column:1/-1}
+.rule-section-title{font-size:10px;color:var(--gold);letter-spacing:2px;border-left:3px solid var(--gold);padding-left:8px;margin-bottom:.5rem}
+.rule-text{font-size:12px;line-height:1.8;color:var(--ink)}
+.rule-example{display:flex;align-items:center;gap:6px;margin:.3rem 0}
+.rule-card{width:32px;height:46px;border-radius:5px;border:2px solid;display:flex;align-items:center;justify-content:center;font-family:'Zen Old Mincho',serif;font-size:16px;font-weight:700}
+.rule-card.red{border-color:var(--vermillion);color:var(--vermillion);background:var(--red-bg)}
+.rule-card.blue{border-color:var(--cobalt);color:var(--cobalt);background:var(--blue-bg)}
+.rule-vs{font-size:10px;color:var(--muted)}
+.rule-result{font-size:11px;padding:2px 8px;border-radius:4px}
+.rule-result.win{background:#e8f5ec;color:var(--green);border:1px solid var(--green)}
+.rule-result.draw{background:var(--surface);color:var(--muted);border:1px solid var(--border)}
+.rule-flow{display:flex;flex-direction:column;gap:4px}
+.rule-step{display:flex;gap:8px;align-items:flex-start}
+.rule-step-num{width:20px;height:20px;border-radius:50%;background:var(--ink);color:var(--washi);font-size:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px}
+.rule-step-text{font-size:12px;line-height:1.6}
+.card-table{width:100%;border-collapse:collapse;font-size:11px;margin-top:.3rem}
+.card-table td{padding:3px 6px;border:1px solid var(--border)}
+.card-table tr:nth-child(even){background:var(--surface)}
+.rule-btn{display:inline-block;padding:6px 16px;border:1px solid var(--border);border-radius:6px;background:transparent;cursor:pointer;font-family:'Noto Serif JP',serif;font-size:12px;color:var(--muted);letter-spacing:1px;transition:all .2s}
+.rule-btn:hover{background:var(--surface);color:var(--ink)}
+.round-select-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:1rem 0}
+.round-select-btn{padding:10px 4px;border-radius:8px;border:1.5px solid var(--border);background:var(--washi);cursor:pointer;font-family:'Zen Old Mincho',serif;font-size:13px;transition:all .2s;text-align:center}
+.round-select-btn:hover{border-color:var(--gold);background:var(--surface)}
+.revealed-card{width:70px;height:100px;border-radius:10px;border:2px solid;display:flex;align-items:center;justify-content:center;font-family:'Zen Old Mincho',serif;font-size:32px;font-weight:700;margin:1rem auto}
+.revealed-card.red{border-color:var(--vermillion);color:var(--vermillion);background:var(--red-bg)}
+.revealed-card.blue{border-color:var(--cobalt);color:var(--cobalt);background:var(--blue-bg)}
+.color-choice-row{display:flex;gap:12px;justify-content:center;margin:1rem 0}
+.color-choice{flex:1;max-width:140px;padding:14px;border-radius:10px;border:2px solid;cursor:pointer;text-align:center;transition:all .2s;font-family:'Zen Old Mincho',serif}
+.color-choice.red{border-color:var(--vermillion);color:var(--vermillion);background:var(--red-bg)}
+.color-choice.blue{border-color:var(--cobalt);color:var(--cobalt);background:var(--blue-bg)}
+.color-choice:hover{transform:scale(1.04)}
+.color-choice-label{font-size:20px;font-weight:700}
+.color-choice-sub{font-size:11px;margin-top:4px;opacity:.8}
+
+.chat-box{background:var(--washi);border:1px solid var(--border);border-radius:8px;padding:12px;min-height:140px;max-height:140px;overflow-y:auto;margin-bottom:12px;display:flex;flex-direction:column;gap:8px;}
+.chat-msg-wrap{display:flex;flex-direction:column;}
+.chat-msg-wrap.me{align-items:flex-end;}
+.chat-msg-wrap.opp{align-items:flex-start;}
+.chat-msg-name{font-size:10px;color:var(--muted);margin-bottom:2px;}
+.chat-msg-text{background:var(--surface);color:var(--ink);border:1px solid var(--border);padding:6px 12px;border-radius:12px;font-size:12px;max-width:100%;word-break:break-all;}
+.chat-msg-wrap.me .chat-msg-text{background:var(--gold);color:var(--washi);border-color:var(--gold);}
+.chat-input-row{display:flex;gap:8px;margin-bottom:12px;}
+.chat-input-row input{flex:1;margin-bottom:0;}
+.chat-stamps{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;}
+.chat-stamp-btn{padding:8px 16px;font-size:16px;border:1px solid var(--border);border-radius:24px;background:transparent;cursor:pointer;transition:all .2s;}
+.chat-stamp-btn:hover{background:var(--surface);}
+
+#toast{position:fixed;bottom:2rem;left:50%;transform:translateX(-50%) translateY(20px);background:var(--ink);color:var(--washi);padding:10px 20px;border-radius:8px;font-size:13px;opacity:0;transition:all .3s;pointer-events:none;z-index:9999;white-space:nowrap;max-width:90vw;text-align:center}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div id="app" class="fade-in"></div>
+<div id="toast"></div>
+
+<!-- Rule Modal -->
+<div id="rule-modal" style="display:none">
+<div class="modal-overlay" onclick="if(event.target===this)closeRuleModal()">
+<div class="modal" onclick="event.stopPropagation()">
+  <div class="modal-header">
+    <div class="modal-title">ルール</div>
+    <button class="modal-close" onclick="closeRuleModal()">✕</button>
+  </div>
+  <div class="modal-body">
+    <div class="rule-section">
+      <div class="rule-section-title">基本情報</div>
+      <table class="card-table">
+        <tr><td style="color:var(--muted)">プレイ人数</td><td>2人</td></tr>
+        <tr><td style="color:var(--muted)">手札</td><td>1〜9のカード各1枚</td></tr>
+        <tr><td style="color:var(--muted)">勝利条件</td><td>先に5勝した方の勝ち</td></tr>
+      </table>
+    </div>
+    <div class="rule-section">
+      <div class="rule-section-title">カードの色</div>
+      <p class="rule-text">奇数（1,3,5,7,9）＝ 赤<br>偶数（2,4,6,8）＝ 青<br>相手には<strong>色の残り枚数だけ</strong>が見えます。</p>
+    </div>
+    <div class="rule-section">
+      <div class="rule-section-title">勝敗ルール</div>
+      <p class="rule-text" style="margin-bottom:.4rem">基本：数字が大きい方が勝ち</p>
+      <div class="rule-example"><div class="rule-card blue">8</div><span class="rule-vs">vs</span><div class="rule-card red">5</div><div class="rule-result win">8の勝ち</div></div>
+      <p class="rule-text" style="margin:.4rem 0">特別：1は9に勝つ</p>
+      <div class="rule-example"><div class="rule-card red">1</div><span class="rule-vs">vs</span><div class="rule-card red">9</div><div class="rule-result win">1の勝ち</div></div>
+      <p class="rule-text" style="margin-top:.4rem">同数字 → 引き分け（DRAW）</p>
+    </div>
+    <div class="rule-section">
+      <div class="rule-section-title">ゲームの流れ</div>
+      <div class="rule-flow">
+        <div class="rule-step"><div class="rule-step-num">1</div><div class="rule-step-text">手札からカードを1枚選ぶ</div></div>
+        <div class="rule-step"><div class="rule-step-num">2</div><div class="rule-step-text">お互い裏向きで同時に出す</div></div>
+        <div class="rule-step"><div class="rule-step-num">3</div><div class="rule-step-text">WIN / LOSE / DRAWが表示される</div></div>
+        <div class="rule-step"><div class="rule-step-num">4</div><div class="rule-step-text">出した数字は非公開（色のみ公開）</div></div>
+      </div>
+    </div>
+    <div class="rule-section full">
+      <div class="rule-section-title">オプション機能</div>
+      <p class="rule-text">
+        <strong>透視カード</strong>：5ラウンド終了後・6ラウンド開始前に1回だけ使用可。過去1〜5ラウンドから見たいラウンドを選ぶと、そのラウンドで相手が出した数字が公開されます。<br><br>
+        <strong>色制限カード</strong>：カード選択と同じタイミングで発動宣言（1試合1回）。赤か青どちらを禁止するか選択してカードを出すと制限が発動し、相手は次のラウンドでその色を出せなくなります。相手がその色しか持っていない場合は無効。<br><br>
+        <strong>タイムリミット</strong>：設定時間内にカードを出さないとランダムカードが自動提出されます。
+      </p>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+<!-- Reveal Modal -->
+<div id="reveal-modal" style="display:none">
+<div class="modal-overlay" onclick="if(event.target===this)closeRevealModal()">
+<div class="modal modal-sm" onclick="event.stopPropagation()">
+  <div class="modal-header">
+    <div class="modal-title">透視カード</div>
+    <button class="modal-close" onclick="closeRevealModal()">✕</button>
+  </div>
+  <div class="modal-body-single" id="reveal-modal-body"></div>
+</div>
+</div>
+</div>
+
+<!-- Restrict Modal -->
+<div id="restrict-modal" style="display:none">
+<div class="modal-overlay" onclick="if(event.target===this){state.pendingRestrictColor=null;closeRestrictModal()}">
+<div class="modal modal-sm" onclick="event.stopPropagation()">
+  <div class="modal-header">
+    <div class="modal-title">色制限カード</div>
+    <button class="modal-close" onclick="state.pendingRestrictColor=null;closeRestrictModal()">✕</button>
+  </div>
+  <div class="modal-body-single">
+    <p style="font-size:13px;color:var(--ink)">相手が<strong>次のラウンド</strong>で出せない色を選んでください</p>
+    <p style="font-size:11px;color:var(--muted);margin-top:.3rem;margin-bottom:.6rem">カードを出すと同時に制限が発動します。相手がその色しか持っていない場合は無効です。</p>
+    <div class="color-choice-row">
+      <div class="color-choice red" onclick="confirmRestrict('red')">
+        <div class="color-choice-label">赤</div>
+        <div class="color-choice-sub">奇数を禁止</div>
+      </div>
+      <div class="color-choice blue" onclick="confirmRestrict('blue')">
+        <div class="color-choice-label">青</div>
+        <div class="color-choice-sub">偶数を禁止</div>
+      </div>
+    </div>
+    <button class="btn btn-secondary btn-sm" style="margin:0 auto" onclick="state.pendingRestrictColor=null;closeRestrictModal()">キャンセル</button>
+  </div>
+</div>
+</div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, set, get, onValue, update, off, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCW7voDrgpBC0AabZ_O3o1ZDKJ9fqnKa7k",
+  authDomain: "grimoire-eclipse.firebaseapp.com",
+  databaseURL: "https://grimoire-eclipse-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "grimoire-eclipse",
+  storageBucket: "grimoire-eclipse.firebasestorage.app",
+  messagingSenderId: "429385058377",
+  appId: "1:429385058377:web:aaa1f22471f2bc938fd798",
+  measurementId: "G-T35ZKBRW05"
+};
+
+let app_fb, db, auth;
+let state={
+  screen:'lobby',myId:null,playerNum:null,
+  roomId:null,roomData:null,selectedCard:null,
+  submitting:false,playerName:'',roomListener:null,
+  timerInterval:null,timerLeft:null,
+  pendingRestrictColor:null,
+};
+let lastToastTime=0;
+
+try {
+  app_fb = initializeApp(firebaseConfig);
+  db = getDatabase(app_fb);
+  auth = getAuth(app_fb);
+  signInAnonymously(auth).catch(e => console.error("Auth Error", e));
+} catch(e) { console.error("Firebase Init Error", e); }
+
+function h(str){
+  if(str==null)return'';
+  return String(str).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[m]));
+}
+
+function genId(len=6){return Math.random().toString(36).slice(2,2+len).toUpperCase();}
+function colorOf(n){return n%2===1?'red':'blue';}
+function calcWinner(p1,p2){
+  if(p1===p2)return'draw';
+  if((p1===1&&p2===9)||(p2===1&&p1===9))return p1===1?'p1':'p2';
+  return p1>p2?'p1':'p2';
+}
+function toast(msg,dur=2500){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),dur);
+}
+function getPlayableHand(hand, room, me) {
+  let playableHand = [...hand];
+  const restrictsOnMe=[];
+  if(room.restrict_target&&room.restrict_by!==me) restrictsOnMe.push(room.restrict_target);
+  if(room.restrict_multi) room.restrict_multi.forEach(rm=>{if(rm.by!==me)restrictsOnMe.push(rm.target);});
+  for(const rt of restrictsOnMe){
+    const otherColor=rt==='red'?'blue':'red';
+    const hasOther=hand.some(n=>colorOf(n)===otherColor);
+    if(hasOther){
+      playableHand = playableHand.filter(n=>colorOf(n)!==rt);
+    }
+  }
+  return playableHand.length > 0 ? playableHand : hand;
+}
+
+async function getRoom(id){
+  if(!db) return null;
+  const snap = await get(ref(db, `games/ncg/${id}`));
+  return snap.exists() ? snap.val() : null;
+}
+async function updateRoom(id,updates){
+  if(!db) return false;
+  try {
+    await update(ref(db, `games/ncg/${id}`), updates);
+    return true;
+  } catch(e) { return false; }
+}
+
+async function createRoom(name,opts){
+  const roomId=String(Math.floor(1000+Math.random()*9000)),myId=genId(8),allCards=[1,2,3,4,5,6,7,8,9];
+  const insertData = {
+    room_id:roomId,player1_id:myId,player1_name:name,
+    player2_id:null,player2_name:null,
+    p1_hand:allCards,p2_hand:allCards,p1_pick:null,p2_pick:null,
+    score_p1:0,score_p2:0,round:1,status:'waiting',
+    history:[],last_result:null,
+    opt_reveal:opts.reveal,opt_timelimit:opts.timelimit,opt_restrict:opts.restrict,
+    p1_restrict_used:false,p2_restrict_used:false,p1_reveal_used:false,p2_reveal_used:false,
+    restrict_target:null,restrict_by:null,
+    p1_next_restrict:null,p2_next_restrict:null,restrict_multi:null,
+    p1_reveal_done:false,p2_reveal_done:false,
+    reveal_history:[],
+    chat_messages:[],
+  };
+  await set(ref(db, `games/ncg/${roomId}`), insertData);
+  state.myId=myId;state.roomId=roomId;state.playerNum=1;state.playerName=name;
+  state.roomData=insertData;
+  setState('waiting');subscribeRoom(roomId);
+}
+
+async function joinRoom(roomId,name){
+  const room=await getRoom(roomId);
+  if(!room){toast('ルームが見つかりません');return;}
+  if(room.status!=='waiting'){toast('このルームはすでに満員です');return;}
+  const myId=genId(8);
+  await updateRoom(roomId,{player2_id:myId,player2_name:name,status:'playing'});
+  state.myId=myId;state.roomId=roomId;state.playerNum=2;state.playerName=name;state.roomData=room;
+  setState('game');subscribeRoom(roomId);
+}
+
+function subscribeRoom(roomId){
+  if(state.roomListener) off(ref(db, `games/ncg/${state.roomId}`));
+  state.roomListener = onValue(ref(db, `games/ncg/${roomId}`), snap => {
+    if(snap.exists()) { state.roomData = snap.val(); handleRoomUpdate(snap.val()); }
+  });
+}
+
+function handleRoomUpdate(room){
+  room.p1_pick = room.p1_pick ?? null;
+  room.p2_pick = room.p2_pick ?? null;
+  room.p1_hand = room.p1_hand || [];
+  room.p2_hand = room.p2_hand || [];
+  room.history = room.history || [];
+  room.chat_messages = room.chat_messages || [];
+
+  const msgs = room.chat_messages || [];
+  if (msgs.length > 0) {
+    const lastMsg = msgs[msgs.length - 1];
+    if (lastMsg.timestamp > lastToastTime) {
+      lastToastTime = lastMsg.timestamp;
+      const senderName = lastMsg.senderNum === 1 ? room.player1_name : room.player2_name;
+      toast(senderName + ': ' + lastMsg.text);
+    }
+  }
+
+  let savedChatText = "";
+  let wasChatFocused = false;
+  const chatInput = document.getElementById('chatInput');
+  if (chatInput) {
+    savedChatText = chatInput.value;
+    wasChatFocused = document.activeElement === chatInput;
+  }
+  const chatLogBox = document.getElementById('chatLogBox');
+  const savedChatScroll = chatLogBox ? {
+    top: chatLogBox.scrollTop,
+    isAtBottom: chatLogBox.scrollHeight - chatLogBox.scrollTop - chatLogBox.clientHeight <= 20
+  } : { top: 0, isAtBottom: true };
+  const windowScrollY = window.scrollY;
+
+  let needRender = false;
+  let useSoftRender = false;
+  let changeState = null;
+
+  if(room.status==='playing'&&(state.screen==='waiting'||state.screen==='lobby')){
+    state.roomData=room;
+    changeState='game';
+  }
+  else if(room.status==='reveal'&&state.screen==='game'){
+    state.roomData=room;clearTimer();
+    const app=document.getElementById('app');
+    app.classList.remove('fade-in');
+    void app.offsetWidth; // アニメーションをリセット
+    app.classList.add('fade-in');
+    needRender=true;
+    setTimeout(()=>startRevealTimer(), 0);
+  }
+  else if(room.status==='playing'&&state.screen==='game'){
+    const me=state.playerNum;
+    const myPick=me===1?room.p1_pick:room.p2_pick;
+    const oppPick=me===1?room.p2_pick:room.p1_pick;
+    if(myPick!==null&&oppPick!==null){
+      if (!window._resolvingRound) {
+        window._resolvingRound = true;
+        resolveRound(room).finally(() => { window._resolvingRound = false; });
+      }
+      return; // DB更新が走るので一旦スキップ
+    }
+    state.roomData=room;
+    useSoftRender=true;
+  }
+  else if(room.status==='finished'){
+    clearTimer();stopRevealTimer();
+    state.roomData=room;
+    changeState='result';
+  }
+  else {
+    state.roomData=room;
+    if (state.screen==='game' || state.screen==='result' || state.screen==='waiting') {
+      useSoftRender=true;
+    }
+  }
+
+  if(changeState) {
+    setState(changeState);
+  } else if(useSoftRender) {
+    softRender();
+  } else if(needRender) {
+    render();
+  }
+
+  setTimeout(() => {
+    const newChatInput = document.getElementById('chatInput');
+    if (newChatInput) {
+      newChatInput.value = savedChatText;
+      if (wasChatFocused) {
+        newChatInput.focus();
+        newChatInput.setSelectionRange(savedChatText.length, savedChatText.length);
+      }
+    }
+    const newChatLogBox = document.getElementById('chatLogBox');
+    if (newChatLogBox) {
+      if (savedChatScroll.isAtBottom) {
+        newChatLogBox.scrollTop = newChatLogBox.scrollHeight;
+      } else {
+        newChatLogBox.scrollTop = savedChatScroll.top;
+      }
+    }
+    window.scrollTo(0, windowScrollY);
+  }, 0);
+}
+
+async function submitCard(card){
+  if(state.submitting)return;
+  const room=state.roomData;const me=state.playerNum;
+  // Check restriction on me this round (single or multi)
+  const myHand2=me===1?room.p1_hand:room.p2_hand;
+  const restrictsOnMe=[];
+  if(room.restrict_target&&room.restrict_by!==me) restrictsOnMe.push(room.restrict_target);
+  if(room.restrict_multi) room.restrict_multi.forEach(r=>{if(r.by!==me)restrictsOnMe.push(r.target);});
+  for(const rt of restrictsOnMe){
+    const otherColor=rt==='red'?'blue':'red';
+    const hasOther=myHand2.some(n=>colorOf(n)===otherColor);
+    if(colorOf(card)===rt&&hasOther){
+      toast(`${rt==='red'?'赤（奇数）':'青（偶数）'}は今ラウンド使用できません`);
+      return;
+    }
+  }
+  state.submitting=true;state.selectedCard=null;clearTimer();
+  const field=me===1?'p1_pick':'p2_pick';
+  const updates={[field]:card};
+  // Store pending color restriction for NEXT round (not current)
+  if(state.pendingRestrictColor&&room.opt_restrict){
+    const oppHand=me===1?room.p2_hand:room.p1_hand;
+    const otherColor=state.pendingRestrictColor==='red'?'blue':'red';
+    const hasOther=oppHand.some(n=>colorOf(n)===otherColor);
+    if(hasOther){
+      // Store as "next_restrict" — will be applied in resolveRound for next round
+      const nrtField=me===1?'p1_next_restrict':'p2_next_restrict';
+      updates[nrtField]=state.pendingRestrictColor;
+      const usedField=me===1?'p1_restrict_used':'p2_restrict_used';
+      updates[usedField]=true;
+      toast(`色制限発動！相手は次のラウンドで${state.pendingRestrictColor==='red'?'赤（奇数）':'青（偶数）'}を出せません`,3000);
+    } else {
+      toast('相手がその色しか持っていないため色制限は無効です');
+    }
+    state.pendingRestrictColor=null;
+  }
+  await updateRoom(state.roomId,updates);
+  state.submitting=false;render();
+}
+
+async function cancelCard(){
+  const me=state.playerNum;const room=state.roomData;
+  const oppPick=me===1?room.p2_pick:room.p1_pick;
+  if(oppPick!==null){toast('相手がすでにカードを出しました');return;}
+  const field=me===1?'p1_pick':'p2_pick';
+  await updateRoom(state.roomId,{[field]:null});
+  state.selectedCard=null;state.pendingRestrictColor=null;
+  // Resume timer from remaining time (don't reset)
+  if(room.opt_timelimit>0 && !state.timerInterval){
+    // timerLeft already has remaining time from before submit, just restart interval
+    if(!state.timerLeft||state.timerLeft<=0)state.timerLeft=room.opt_timelimit;
+    updateTimerBar();
+    state.timerInterval=setInterval(async()=>{
+      state.timerLeft--;updateTimerBar();
+      if(state.timerLeft<=0){
+        clearTimer();
+        const r=state.roomData;
+        const pick=state.playerNum===1?r?.p1_pick:r?.p2_pick;
+        if(pick===null&&r){
+          const hand=state.playerNum===1?r.p1_hand:r.p2_hand;
+          if(hand&&hand.length>0){
+            const playableHand = getPlayableHand(hand, r, state.playerNum);
+            state.pendingRestrictColor=null;
+            toast('時間切れ！ランダムカードが自動提出されました');
+            await submitCard(playableHand[Math.floor(Math.random()*playableHand.length)]);
+          }
+        }
+      }
+    },1000);
+  }
+  render();
+}
+
+async function resolveRound(room){
+  if(state.playerNum!==1)return;
+  const p1=room.p1_pick,p2=room.p2_pick;
+  const winner=calcWinner(p1,p2);
+  let s1=room.score_p1,s2=room.score_p2;
+  if(winner==='p1')s1++;else if(winner==='p2')s2++;
+  const newP1Hand=room.p1_hand.filter(c=>c!==p1);
+  const newP2Hand=room.p2_hand.filter(c=>c!==p2);
+  const histEntry={round:room.round,p1,p2,winner};
+  const newHist=[...(room.history||[]),histEntry];
+  const finished=s1>=5||s2>=5||newP1Hand.length===0;
+  // After round 5: trigger reveal phase if opt_reveal is ON (even if restrict was used)
+  const isRound5=room.round===5;
+  const nextStatus=finished?'finished':(isRound5&&room.opt_reveal)?'reveal':'playing';
+  // Merge both players' next restrict
+  // If both used, last alphabetically wins (edge case), but store as array or pick one
+  // p1_next_restrict applies to p2 next round, p2_next_restrict applies to p1 next round
+  const p1nr=room.p1_next_restrict||null;
+  const p2nr=room.p2_next_restrict||null;
+  // restrict_target for next round: if p1 set it → applies to p2 (restrict_by=1); if p2 set it → applies to p1 (restrict_by=2)
+  // If both set: store both as array in restrict_multi
+  let nextRestrict=null,nextRestrictBy=null,restrictMulti=null;
+  if(p1nr&&p2nr){
+    restrictMulti=[{target:p1nr,by:1},{target:p2nr,by:2}];
+  } else if(p1nr){nextRestrict=p1nr;nextRestrictBy=1;}
+  else if(p2nr){nextRestrict=p2nr;nextRestrictBy=2;}
+  await updateRoom(state.roomId,{
+    p1_hand:newP1Hand,p2_hand:newP2Hand,
+    score_p1:s1,score_p2:s2,
+    p1_pick:null,p2_pick:null,
+    round:room.round+1,
+    history:newHist,
+    status:nextStatus,
+    last_result:{p1,p2,winner},
+    restrict_target:nextRestrict,
+    restrict_by:nextRestrictBy,
+    restrict_multi:restrictMulti,
+    p1_next_restrict:null,
+    p2_next_restrict:null,
+    p1_reveal_done:false,
+    p2_reveal_done:false,
+    reveal_history:[...(room.reveal_history||[])],
+  });
+}
+
+async function rematch(){
+  const allCards=[1,2,3,4,5,6,7,8,9];
+  await updateRoom(state.roomId,{
+    p1_hand:allCards,p2_hand:allCards,p1_pick:null,p2_pick:null,
+    score_p1:0,score_p2:0,round:1,status:'playing',
+    history:[],last_result:null,
+    p1_restrict_used:false,p2_restrict_used:false,p1_reveal_used:false,p2_reveal_used:false,
+    restrict_target:null,restrict_by:null,
+    p1_next_restrict:null,p2_next_restrict:null,restrict_multi:null,
+    p1_reveal_done:false,p2_reveal_done:false,
+    reveal_history:[],
+    p1_next_restrict:null,p2_next_restrict:null,restrict_multi:null,
+    p1_reveal_done:false,p2_reveal_done:false,
+    reveal_history:[],
+  });
+  state.pendingRestrictColor=null;
+  setState('game');
+}
+
+// Timer
+function startTimer(){
+  clearTimer();
+  const room=state.roomData;
+  if(!room||!room.opt_timelimit||room.opt_timelimit===0)return;
+  const me=state.playerNum;
+  if((me===1?room.p1_pick:room.p2_pick)!==null)return;
+  state.timerLeft=room.opt_timelimit;
+  updateTimerBar();
+  state.timerInterval=setInterval(async()=>{
+    state.timerLeft--;updateTimerBar();
+    if(state.timerLeft<=0){
+      clearTimer();
+      const r=state.roomData;
+      const pick=state.playerNum===1?r?.p1_pick:r?.p2_pick;
+      if(pick===null&&r){
+        const hand=state.playerNum===1?r.p1_hand:r.p2_hand;
+        if(hand&&hand.length>0){
+          const playableHand = getPlayableHand(hand, r, state.playerNum);
+          state.pendingRestrictColor=null;
+          toast('時間切れ！ランダムカードが自動提出されました');
+          await submitCard(playableHand[Math.floor(Math.random()*playableHand.length)]);
+        }
+      }
+    }
+  },1000);
+}
+function clearTimer(){if(state.timerInterval){clearInterval(state.timerInterval);state.timerInterval=null;}}
+// Reveal phase timer
+let revealTimerInterval=null;
+let revealTimerLeft=null;
+function startRevealTimer(){
+  stopRevealTimer();
+  const room=state.roomData;
+  if(!room)return;
+  const limit=room.opt_timelimit||0;
+  revealTimerLeft=limit>0?limit:999;
+  updateRevealTimerBar();
+  revealTimerInterval=setInterval(async()=>{
+    if(revealTimerLeft<999)revealTimerLeft--;
+    updateRevealTimerBar();
+    if(revealTimerLeft<=0){
+      stopRevealTimer();
+      // Auto-skip reveal for this player
+      const me=state.playerNum;
+      const doneField=me===1?'p1_reveal_done':'p2_reveal_done';
+      const room2=state.roomData;
+      if(room2&&!room2[doneField]){
+        await markRevealDone(true);
+      }
+    }
+  },1000);
+}
+function stopRevealTimer(){
+  if(revealTimerInterval){clearInterval(revealTimerInterval);revealTimerInterval=null;}
+}
+function updateRevealTimerBar(){
+  const bar=document.getElementById('reveal-timer-bar');
+  const num=document.getElementById('reveal-timer-num');
+  if(!bar||!num)return;
+  const room=state.roomData;
+  const total=room?.opt_timelimit||30;
+  if(revealTimerLeft===999){bar.style.width='100%';num.textContent='';return;}
+  bar.style.width=Math.max(0,(revealTimerLeft/total)*100)+'%';
+  bar.className='timer-bar'+(revealTimerLeft<=5?' danger':'');
+  num.textContent=revealTimerLeft+'秒';
+}
+async function markRevealDone(auto=false){
+  const me=state.playerNum;
+  const doneField=me===1?'p1_reveal_done':'p2_reveal_done';
+  stopRevealTimer();
+  
+  // runTransactionを使用して安全にステータスを更新する
+  runTransaction(ref(db, `games/ncg/${state.roomId}`), (room) => {
+    if(room) {
+      room[doneField] = true;
+      if(room.p1_reveal_done && room.p2_reveal_done) {
+        room.status = 'playing';
+      }
+    }
+    return room;
+  });
+}
+async function doRevealRound(round){
+  const room=state.roomData;
+  const me=state.playerNum;
+  const hist=room.history||[];
+  const h=hist.find(x=>x.round===round);
+  if(!h)return;
+  const oppCard=me===1?h.p2:h.p1;
+  const usedField=me===1?'p1_reveal_used':'p2_reveal_used';
+  const revHist=[...(room.reveal_history||[]),{player:me,round,card:oppCard}];
+  await updateRoom(state.roomId,{[usedField]:true,reveal_history:revHist});
+  const room2=await getRoom(state.roomId);
+  state.roomData=room2;
+  render();
+  // Show reveal result inline
+  const el=document.getElementById('reveal-result');
+  if(el){
+    const cls=colorOf(oppCard);
+    el.innerHTML=`<div style="text-align:center;padding:.8rem;background:var(--surface);border-radius:8px;border:1px solid var(--border);margin:.6rem 0">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:.4rem">第${round}回戦で相手が出したカード</div>
+      <div class="revealed-card ${cls}" style="width:56px;height:80px;font-size:26px;margin:.4rem auto">${oppCard}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:.4rem">${oppCard}（${cls==='red'?'赤・奇数':'青・偶数'}）</div>
+    </div>`;
+  }
+}
+
+function updateTimerBar(){
+  const bar=document.getElementById('timer-bar');
+  const num=document.getElementById('timer-num');
+  if(!bar||!num)return;
+  const total=state.roomData?.opt_timelimit||30;
+  bar.style.width=Math.max(0,(state.timerLeft/total)*100)+'%';
+  bar.className='timer-bar'+(state.timerLeft<=5?' danger':'');
+  num.textContent=state.timerLeft+'秒';
+}
+
+// Reveal ability
+function openRevealModal(){
+  const room=state.roomData;const me=state.playerNum;
+  const hist=room.history||[];
+  const body=document.getElementById('reveal-modal-body');
+  body.innerHTML=`
+    <p style="font-size:13px;color:var(--ink);margin-bottom:.3rem">見たいラウンドを選んでください</p>
+    <p style="font-size:11px;color:var(--muted);margin-bottom:.8rem">そのラウンドで相手が出した数字が公開されます（1回のみ）</p>
+    <div class="round-select-grid">
+      ${hist.map(h=>{
+        const oppCard=me===1?h.p2:h.p1;
+        return`<button class="round-select-btn" onclick="revealRound(${h.round},${oppCard})">第${h.round}回戦</button>`;
+      }).join('')}
+    </div>
+    <div style="text-align:center"><button class="btn btn-secondary btn-sm" onclick="closeRevealModal()">キャンセル</button></div>
+  `;
+  document.getElementById('reveal-modal').style.display='block';
+}
+async function revealRound(round,oppCard){
+  const me=state.playerNum;
+  const usedField=me===1?'p1_ability_used':'p2_ability_used';
+  await updateRoom(state.roomId,{[usedField]:true});
+  const cls=colorOf(oppCard);
+  document.getElementById('reveal-modal-body').innerHTML=`
+    <p style="font-size:13px;color:var(--muted);text-align:center;margin-bottom:.5rem">第${round}回戦で相手が出したカード</p>
+    <div class="revealed-card ${cls}">${oppCard}</div>
+    <p style="font-size:12px;color:var(--muted);text-align:center;margin-bottom:1rem">${oppCard}（${cls==='red'?'赤・奇数':'青・偶数'}）</p>
+    <div style="text-align:center"><button class="btn btn-primary btn-sm" onclick="closeRevealModal();render()">確認した</button></div>
+  `;
+  render();
+}
+function closeRevealModal(){document.getElementById('reveal-modal').style.display='none';}
+
+// Restrict ability
+function openRestrictModal(){document.getElementById('restrict-modal').style.display='block';}
+function closeRestrictModal(){document.getElementById('restrict-modal').style.display='none';}
+function confirmRestrict(color){state.pendingRestrictColor=color;closeRestrictModal();render();}
+
+// Render
+function setState(s){
+  state.screen=s;
+  const app=document.getElementById('app');
+  app.classList.remove('fade-in');
+  void app.offsetWidth; // アニメーションをリセット
+  app.classList.add('fade-in');
+  render();
+}
+
+function renderChatUI() {
+  const room = state.roomData;
+  if (!room) return '';
+  const msgs = room.chat_messages || [];
+  const me = state.playerNum;
+
+  const msgsHtml = msgs.map(m => {
+    const isMe = m.senderNum === me;
+    const senderName = m.senderNum === 1 ? room.player1_name : room.player2_name;
+    return `<div class="chat-msg-wrap ${isMe ? 'me' : 'opp'}">
+      <div class="chat-msg-name">${h(senderName)}</div>
+      <div class="chat-msg-text">${h(m.text)}</div>
+    </div>`;
+  }).join('');
+
+  return `
+    <div style="margin-top:24px; padding-top:16px; border-top:1px dashed var(--border);">
+      <div id="chatLogBox" class="chat-box">
+        ${msgsHtml}
+        ${msgs.length === 0 ? '<div style="text-align:center; color:var(--muted); font-size:11px; margin-top: 40px;">メッセージはありません</div>' : ''}
+      </div>
+      <div class="chat-input-row">
+        <input type="text" id="chatInput" placeholder="メッセージを入力..." maxlength="30" onkeypress="if(event.key==='Enter') window._sendChat()">
+        <button class="btn btn-primary btn-sm" style="padding: 0 16px;" onclick="window._sendChat()">送信</button>
+      </div>
+      <div class="chat-stamps">
+        <button class="chat-stamp-btn" onclick="window._sendStamp('👍 ナイス！')">👍</button>
+        <button class="chat-stamp-btn" onclick="window._sendStamp('🤔 うーん...')">🤔</button>
+        <button class="chat-stamp-btn" onclick="window._sendStamp('💡 わかった！')">💡</button>
+        <button class="chat-stamp-btn" onclick="window._sendStamp('🙏 おまかせ！')">🙏</button>
+        <button class="chat-stamp-btn" onclick="window._sendStamp('💦 ごめん！')">💦</button>
+      </div>
+    </div>
+  `;
+}
+
+window._sendStamp = async function(text) {
+  if (!state.roomData) return;
+  runTransaction(ref(db, `games/ncg/${state.roomId}/chat_messages`), (messages) => {
+    const newMessages = messages || [];
+    newMessages.push({ senderNum: state.playerNum, text: text, timestamp: Date.now() });
+    if (newMessages.length > 50) newMessages.shift();
+    return newMessages;
+  });
+};
+
+window._sendChat = async function() {
+  const input = document.getElementById('chatInput');
+  if (!input || !input.value.trim() || !state.roomData) return;
+  const text = input.value.trim();
+  input.value = '';
+  runTransaction(ref(db, `games/ncg/${state.roomId}/chat_messages`), (messages) => {
+    const newMessages = messages || [];
+    newMessages.push({ senderNum: state.playerNum, text: text, timestamp: Date.now() });
+    if (newMessages.length > 50) newMessages.shift();
+    return newMessages;
+  });
+};
+
+// softRender: re-render game screen but preserve timer DOM value to avoid flicker
+function softRender(){
+  if(state.screen!=='game')return render();
+  const app=document.getElementById('app');
+  const room=state.roomData;
+  if(room&&room.status==='reveal'){app.innerHTML=renderRevealPhase();if(!revealTimerInterval)startRevealTimer();return;}
+  const savedLeft=state.timerLeft;
+  const wasRunning=!!state.timerInterval;
+  app.innerHTML=renderGame();
+  if(wasRunning&&savedLeft!==null){
+    state.timerLeft=savedLeft;
+    // Use requestAnimationFrame to update after DOM paint to avoid flicker
+    requestAnimationFrame(()=>updateTimerBar());
+  }
+  // Don't call initGameScreen here to avoid restarting timer
+}
+function render(){
+  const app=document.getElementById('app');
+  const room=state.roomData;
+  if(state.screen==='game'&&room&&room.status==='reveal'){
+    app.innerHTML=renderRevealPhase();
+    if(!revealTimerInterval)startRevealTimer();
+    return;
+  }
+  switch(state.screen){
+    case 'lobby':   app.innerHTML=renderLobby();break;
+    case 'waiting': app.innerHTML=renderWaiting();break;
+    case 'game':{
+      const savedLeft=state.timerLeft;
+      const wasRunning=!!state.timerInterval;
+      app.innerHTML=renderGame();
+      if(wasRunning&&savedLeft!==null){state.timerLeft=savedLeft;updateTimerBar();}
+      initGameScreen();
+      break;
+    }
+    case 'result':  app.innerHTML=renderResult();break;
+  }
+}
+function initGameScreen(){
+  const room=state.roomData;if(!room)return;
+  const me=state.playerNum;
+  const myPick=me===1?room.p1_pick:room.p2_pick;
+  // Only start timer if not already running and pick is null
+  if(myPick===null&&!state.timerInterval)startTimer();
+  // If pick is submitted, clear timer
+  if(myPick!==null)clearTimer();
+}
+
+function renderRevealPhase(){
+  const room=state.roomData;
+  const me=state.playerNum;
+  const myName=h(me===1?room.player1_name:room.player2_name);
+  const oppName=h(me===1?room.player2_name:room.player1_name);
+  const myDone=me===1?room.p1_reveal_done:room.p2_reveal_done;
+  const myUsed=me===1?room.p1_reveal_used:room.p2_reveal_used;
+  const hist=room.history||[];
+  const limit=room.opt_timelimit||0;
+  const timerHtml=limit>0?`<div class="timer-wrap">
+    <div class="timer-bar-bg"><div class="timer-bar" id="reveal-timer-bar" style="width:100%"></div></div>
+    <div class="timer-num" id="reveal-timer-num">${revealTimerLeft||limit}秒</div>
+  </div>`:'';
+
+  // Show reveal_history results
+  const revHist=(room.reveal_history||[]).filter(r=>r.player===me);
+  const revResultHtml=revHist.length>0?revHist.map(r=>{
+    const cls=colorOf(r.card);
+    return`<div style="text-align:center;padding:.8rem;background:var(--surface);border-radius:8px;border:1px solid var(--border);margin:.6rem 0">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:.4rem">第${r.round}回戦で相手が出したカード</div>
+      <div class="revealed-card ${cls}" style="width:56px;height:80px;font-size:26px;margin:.4rem auto">${r.card}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:.4rem">${r.card}（${cls==='red'?'赤・奇数':'青・偶数'}）</div>
+    </div>`;
+  }).join(''):'<div id="reveal-result"></div>';
+
+  return`<div class="screen">
+  <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+    <button class="rule-btn" onclick="if(confirm('ゲームを終了して一覧に戻りますか？')) location.href='../'" style="font-size:11px;padding:3px 10px">🚪 退出</button>
+  </div>
+  <div class="game-title" style="font-size:28px">透視フェーズ</div>
+  <div class="game-sub">— 5ラウンド終了 —</div>
+  <div class="panel">
+    <div class="panel-title">相手の過去カードを1枚確認できます</div>
+    ${timerHtml}
+    ${myDone?`<div style="text-align:center;padding:1rem;color:var(--muted);font-size:13px">
+      ${myUsed?'透視完了。相手のターンを待っています...':'スキップしました。相手のターンを待っています...'}</div>
+      ${revResultHtml}`:`
+    ${myUsed?revResultHtml:`
+    <p style="font-size:12px;color:var(--muted);margin-bottom:.8rem">見たいラウンドを選んでください（1回のみ）</p>
+    <div class="round-select-grid">
+      ${hist.map(h=>`<button class="round-select-btn" onclick="doRevealRound(${h.round})">第${h.round}回戦</button>`).join('')}
+    </div>
+    <div id="reveal-result"></div>`}
+    ${!myUsed?'':`<div style="text-align:center;margin-top:.6rem"><button class="btn btn-primary btn-sm" onclick="markRevealDone()">確認して次へ</button></div>`}
+    ${!myUsed?`<div style="text-align:center;margin-top:.8rem"><button class="btn btn-secondary btn-sm" onclick="markRevealDone()">スキップ</button></div>`:''}
+    `}
+  </div>
+  ${renderChatUI()}
+</div>`;
+}
+
+function renderLobby(){
+  return`<div class="screen">
+  <div class="game-title">数心乱戦</div>
+  <div class="game-sub">— 情報制限カードゲーム —</div>
+  <div class="panel">
+    <div class="panel-title">🎴 ルームを作成する</div>
+    <div class="config-row"><label>あなたの名前</label><input type="text" id="name-create" placeholder="プレイヤー名" maxlength="12"></div>
+    <div style="border:1px solid var(--border);border-radius:8px;padding:.8rem;margin-bottom:.8rem">
+      <div style="font-size:11px;color:var(--gold);letter-spacing:2px;margin-bottom:.6rem;border-left:3px solid var(--gold);padding-left:8px">オプション設定</div>
+      <div class="toggle-row">
+        <div><div class="toggle-label">透視カード</div><div class="toggle-desc">5ラウンド後に相手の過去カードを1枚確認</div></div>
+        <label class="toggle"><input type="checkbox" id="opt-reveal"><span class="toggle-slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div><div class="toggle-label">色制限カード</div><div class="toggle-desc">1回だけ相手の次ラウンドの色を制限できる</div></div>
+        <label class="toggle"><input type="checkbox" id="opt-restrict"><span class="toggle-slider"></span></label>
+      </div>
+      <div class="toggle-row" style="border-bottom:none">
+        <div><div class="toggle-label">タイムリミット</div><div class="toggle-desc">制限時間内に出さないとランダム提出</div></div>
+        <select id="opt-timelimit">
+          <option value="0">無制限</option>
+          <option value="10">10秒</option>
+          <option value="20">20秒</option>
+          <option value="30">30秒</option>
+          <option value="60">60秒</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="handleCreate()">ルームを作成</button>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted);margin:16px 0;">
+    <div style="flex:1;height:1px;background:var(--border);"></div> または <div style="flex:1;height:1px;background:var(--border);"></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">🚪 ルームに参加する</div>
+    <div class="config-row"><label>あなたの名前</label><input type="text" id="name-join" placeholder="プレイヤー名" maxlength="12"></div>
+    <div class="config-row"><label>ルームID（4桁）</label><input type="text" id="room-input" placeholder="0000" maxlength="4" inputmode="numeric" style="letter-spacing:6px;font-size:24px;text-align:center;font-family:'Zen Old Mincho',serif"></div>
+    <button class="btn btn-secondary gap" onclick="handleJoin()">参加する</button>
+  </div>
+
+  <button class="btn btn-secondary" onclick="openRuleModal()">📖 ルールを確認する</button>
+  <button class="btn btn-secondary" style="margin-top:8px;border-color:transparent;" onclick="location.href='../'">🏠 ゲーム一覧に戻る</button>
+</div>`;
+}
+
+function renderWaiting(){
+  const url=location.href.split('?')[0]+'?room='+state.roomId;
+  return`<div class="screen">
+  <div class="game-title">数心乱戦</div>
+  <div class="game-sub">— 友達を待っています —</div>
+  <div class="room-box">
+    <div style="font-size:11px;color:var(--muted);letter-spacing:2px;margin-bottom:.4rem">ルームID</div>
+    <div class="room-id">${state.roomId}</div>
+    <div class="room-hint">友達にIDかURLを共有してください</div>
+    <div style="display:flex;gap:8px;justify-content:center;margin-top:.6rem">
+      <button class="copy-btn" onclick="copyText('${state.roomId}')">IDをコピー</button>
+      <button class="copy-btn dark" onclick="copyText('${url}')">URLをコピー</button>
+    </div>
+  </div>
+  <div style="text-align:center;color:var(--muted);font-size:13px;letter-spacing:1px">相手の参加を待っています</div>
+  <div class="waiting-anim"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+  <button class="btn btn-secondary" style="margin-top:2rem" onclick="if(confirm('ゲームを終了して一覧に戻りますか？')) location.href='../'">🚪 退出する</button>
+  ${renderChatUI()}
+</div>`;
+}
+
+function renderGame(){
+  const room=state.roomData;
+  if(!room)return`<div class="screen" style="text-align:center;padding:3rem;color:var(--muted)">読み込み中...</div>`;
+  const me=state.playerNum;
+  const myHand=me===1?room.p1_hand:room.p2_hand;
+  const oppHand=me===1?room.p2_hand:room.p1_hand;
+  const myScore=me===1?room.score_p1:room.score_p2;
+  const oppScore=me===1?room.score_p2:room.score_p1;
+  const myName=h(me===1?room.player1_name:room.player2_name);
+  const oppName=h(me===1?room.player2_name:room.player1_name);
+  const myPick=me===1?room.p1_pick:room.p2_pick;
+  const oppPick=me===1?room.p2_pick:room.p1_pick;
+  const myRestrictUsed=me===1?room.p1_restrict_used:room.p2_restrict_used;
+  const myRevealUsed=me===1?room.p1_reveal_used:room.p2_reveal_used;
+  const oppRed=(oppHand||[]).filter(n=>n%2===1).length;
+  const oppBlue=(oppHand||[]).filter(n=>n%2===0).length;
+  const hist=room.history||[];
+
+  // Restrict notice for me (single or multi)
+  let restrictNoticeHtml='';
+  const myRestrictsThisRound=[];
+  if(room.restrict_target&&room.restrict_by!==me) myRestrictsThisRound.push(room.restrict_target);
+  if(room.restrict_multi) room.restrict_multi.forEach(r=>{if(r.by!==me)myRestrictsThisRound.push(r.target);});
+  if(myRestrictsThisRound.length>0){
+    const labels=myRestrictsThisRound.map(c=>c==='red'?'赤（奇数）':'青（偶数）').join('・');
+    const cls=myRestrictsThisRound.includes('red')?'red':'blue';
+    restrictNoticeHtml=`<div class="restrict-notice ${cls}">今ラウンド：${labels}カードは使用不可</div>`;
+  }
+
+  // Result banner
+  let resultHtml='';
+  if(room.last_result&&hist.length>0){
+    const last=hist[hist.length-1];
+    const iWon=(me===1&&last.winner==='p1')||(me===2&&last.winner==='p2');
+    const isDraw=last.winner==='draw';
+    const cls=isDraw?'result-draw':iWon?'result-win':'result-lose';
+    const label=isDraw?'DRAW':iWon?'WIN':'LOSE';
+    const myCard=me===1?last.p1:last.p2;
+    const oppCard=me===1?last.p2:last.p1;
+    const myPillCls=colorOf(myCard)==='red'?'pill-red':'pill-blue';
+    const oppPillCls=colorOf(oppCard)==='red'?'pill-red':'pill-blue';
+    const myColorLabel=colorOf(myCard)==='red'?'赤（奇数）':'青（偶数）';
+    const oppColorLabel=colorOf(oppCard)==='red'?'赤（奇数）':'青（偶数）';
+    resultHtml=`<div class="result-banner ${cls}">
+      <div class="result-main">${label}</div>
+      <div class="result-detail">第${last.round}回戦</div>
+      <div style="display:flex;gap:6px;justify-content:center;margin-top:6px;flex-wrap:wrap">
+        <span class="color-pill ${myPillCls}" style="font-size:11px;padding:3px 10px">${myName||'あなた'}：${myColorLabel}</span>
+        <span class="color-pill ${oppPillCls}" style="font-size:11px;padding:3px 10px">${oppName||'相手'}：${oppColorLabel}</span>
+      </div>
+    </div>`;
+  }
+
+  // History
+  const histRows=hist.slice().reverse().map(h=>{
+    const iWon=(me===1&&h.winner==='p1')||(me===2&&h.winner==='p2');
+    const isDraw=h.winner==='draw';
+    const resCls=isDraw?'draw':iWon?'win':'lose';
+    const myCard=me===1?h.p1:h.p2;
+    const oppCard=me===1?h.p2:h.p1;
+    const myColorCls=colorOf(myCard)==='red'?'pill-red':'pill-blue';
+    const oppColorCls=colorOf(oppCard)==='red'?'pill-red':'pill-blue';
+    const myColorLabel=colorOf(myCard)==='red'?'赤':'青';
+    const oppColorLabel=colorOf(oppCard)==='red'?'赤':'青';
+    return`<div class="log-row" style="justify-content:space-between;align-items:center">
+      <span class="log-round" style="min-width:52px">第${h.round}回戦</span>
+      <span style="display:flex;gap:4px;align-items:center">
+        <span class="color-pill ${myColorCls}" style="font-size:10px;padding:1px 7px">${myColorLabel}</span>
+        <span style="font-size:10px;color:var(--muted)">vs</span>
+        <span class="color-pill ${oppColorCls}" style="font-size:10px;padding:1px 7px">${oppColorLabel}</span>
+      </span>
+      <span class="log-res ${resCls}" style="min-width:36px;text-align:right">${isDraw?'DRAW':iWon?'WIN':'LOSE'}</span>
+    </div>`;
+  }).join('');
+
+  // Cards
+  const cardItems=(myHand||[]).sort((a,b)=>a-b).map(n=>{
+    const cls=colorOf(n);
+    const isSel=state.selectedCard===n;
+    const isDisabled=myPick!==null||state.submitting;
+    const myRestrictsCards=[];
+    if(room.restrict_target&&room.restrict_by!==me)myRestrictsCards.push(room.restrict_target);
+    if(room.restrict_multi)room.restrict_multi.forEach(r=>{if(r.by!==me)myRestrictsCards.push(r.target);});
+    const isRestricted=!isDisabled&&myRestrictsCards.some(rt=>colorOf(n)===rt&&(myHand||[]).some(c=>colorOf(c)!==rt));
+    const onclick=isRestricted?`toast('今ラウンドは使用できません')`:`selectCard(${n})`;
+    return`<div class="card ${cls}${isSel?' selected':''}${isDisabled?' disabled':''}${isRestricted?' restricted':''}" onclick="${onclick}">
+      <div class="num">${n}</div><div class="dot">●</div>
+    </div>`;
+  }).join('');
+
+  // Confirm area
+  let confirmHtml='';
+  if(myPick===null){
+    if(state.selectedCard){
+      const c=colorOf(state.selectedCard);
+      let restrictToggle='';
+      if(room.opt_restrict&&!myRestrictUsed){
+        const isActive=state.pendingRestrictColor!==null;
+        const toggleCls=isActive?(state.pendingRestrictColor==='red'?'restrict-toggle active-red':'restrict-toggle active-blue'):'restrict-toggle';
+        const toggleLabel=isActive?`色制限：${state.pendingRestrictColor==='red'?'赤を禁止 (タップで解除)':'青を禁止 (タップで解除)'}`: '色制限カードを使う';
+        restrictToggle=`<div class="${toggleCls}" onclick="${isActive?'state.pendingRestrictColor=null;render()':'openRestrictModal()'}">🔒 ${toggleLabel}</div>`;
+      }
+      confirmHtml=`<div class="selected-preview">選択中：<strong>${state.selectedCard}</strong>（${c==='red'?'赤・奇数':'青・偶数'}）</div>
+      ${restrictToggle}
+      <button class="btn btn-primary btn-sm" onclick="submitCard(${state.selectedCard})">このカードを出す</button>`;
+    } else {
+      confirmHtml=`<div style="font-size:13px;color:var(--muted);letter-spacing:1px">カードを選んでください</div>`;
+    }
+  } else {
+    confirmHtml=`<div style="font-size:13px;color:var(--gold);letter-spacing:1px">カードを出しました</div>
+    <div class="waiting-msg">相手を待っています...</div>
+    ${oppPick===null?'<div style="margin-top:.5rem"><button class="btn btn-secondary btn-sm" onclick="cancelCard()">キャンセル</button></div>':''}`;
+  }
+
+  // Timer
+  const timerHtml=room.opt_timelimit>0&&myPick===null?`<div class="timer-wrap">
+    <div class="timer-bar-bg"><div class="timer-bar" id="timer-bar" style="width:100%"></div></div>
+    <div class="timer-num" id="timer-num">${state.timerLeft??room.opt_timelimit}秒</div>
+  </div>`:'';
+
+  // Reveal ability — available from round 6 onward
+  let abilityHtml='';
+  if(room.opt_reveal){
+    if(room.round>=6&&!myRevealUsed&&hist.length>=5){
+      abilityHtml=`<div class="ability-area"><button class="ability-btn" onclick="openRevealModal()">👁 透視カードを使う（1回のみ）</button></div>`;
+    } else if(myRevealUsed){
+      abilityHtml=`<div class="ability-area"><button class="ability-btn used" disabled>透視カード：使用済み</button></div>`;
+    }
+  }
+
+  // Option badges
+  const badges=[];
+  if(room.opt_reveal)badges.push('透視');
+  if(room.opt_restrict)badges.push('色制限');
+  if(room.opt_timelimit>0)badges.push(room.opt_timelimit+'秒');
+  const badgeHtml=badges.length?`<div style="text-align:center;margin-bottom:.4rem">${badges.map(b=>`<span style="font-size:10px;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1px 6px;color:var(--muted);margin:0 2px">${b}</span>`).join('')}</div>`:'';
+
+  return`<div class="screen">
+  <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
+    <button class="rule-btn" onclick="if(confirm('ゲームを終了して一覧に戻りますか？')) location.href='../'" style="font-size:11px;padding:3px 10px">🚪 退出</button>
+  </div>
+  <div class="score-bar">
+    <div class="score-side"><div class="score-name">${myName||'あなた'}</div><div class="score-num">${myScore}</div><div class="score-wins">勝利数</div></div>
+    <div class="score-divider">VS</div>
+    <div class="score-side"><div class="score-name">${oppName||'相手'}</div><div class="score-num">${oppScore}</div><div class="score-wins">勝利数</div></div>
+  </div>
+  ${badgeHtml}
+  <div class="round-badge">第 ${room.round} 回戦　/　先に5勝で勝利 <button class="rule-btn" onclick="openRuleModal()" style="font-size:11px;padding:3px 10px">ルール</button></div>
+  ${restrictNoticeHtml}
+  ${resultHtml}
+  ${abilityHtml}
+  <div style="display:grid;grid-template-columns:${hist.length>0?'1fr 1.6fr':'1fr'};gap:.6rem;margin-bottom:.6rem">
+    <div class="panel" style="margin-bottom:0">
+      <div class="panel-title">相手の残り</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="color-pill pill-red" style="text-align:center">赤 ${oppRed}</div>
+        <div class="color-pill pill-blue" style="text-align:center">青 ${oppBlue}</div>
+      </div>
+    </div>
+    ${hist.length>0?`<div class="panel" style="margin-bottom:0">
+      <div class="panel-title">対戦履歴</div>
+      <div>${histRows}</div>
+    </div>`:''}
+  </div>
+  <div class="panel">
+    <div class="panel-title">あなたの手札</div>
+    ${timerHtml}
+    <div class="hand">${cardItems}</div>
+    <div class="confirm-area">${confirmHtml}</div>
+  </div>
+  ${renderChatUI()}
+</div>`;
+}
+
+function renderResult(){
+  const room=state.roomData;const me=state.playerNum;
+  const myScore=me===1?room.score_p1:room.score_p2;
+  const oppScore=me===1?room.score_p2:room.score_p1;
+  const myName=h(me===1?room.player1_name:room.player2_name);
+  const oppName=h(me===1?room.player2_name:room.player1_name);
+  const iWin=myScore>oppScore;
+  const isDraw2=myScore===oppScore;
+  const hist=room.history||[];
+  const revHist=room.reveal_history||[];
+  const histRows=hist.map(h=>{
+    const iWon=(me===1&&h.winner==='p1')||(me===2&&h.winner==='p2');
+    const isDraw=h.winner==='draw';
+    const resCls=isDraw?'draw':iWon?'win':'lose';
+    const myCard=me===1?h.p1:h.p2;
+    const oppCard=me===1?h.p2:h.p1;
+    // Check if reveal happened for this round
+    const myReveal=revHist.find(r=>r.player===me&&r.round===h.round);
+    const revealBadge=myReveal?`<span style="font-size:9px;background:#fef9ec;border:1px solid var(--gold);color:var(--gold);border-radius:3px;padding:1px 4px;margin-left:3px">透視</span>`:'';
+    return`<tr>
+      <td style="color:var(--muted);text-align:center;padding:4px 6px;font-size:12px">第${h.round}回戦${revealBadge}</td>
+      <td style="text-align:center;font-family:'Zen Old Mincho',serif;font-size:17px;color:${colorOf(myCard)==='red'?'var(--vermillion)':'var(--cobalt)'};padding:4px 10px">${myCard}</td>
+      <td style="text-align:center;font-size:11px;color:var(--muted);padding:4px">vs</td>
+      <td style="text-align:center;font-family:'Zen Old Mincho',serif;font-size:17px;color:${colorOf(oppCard)==='red'?'var(--vermillion)':'var(--cobalt)'};padding:4px 10px">${oppCard}</td>
+      <td style="text-align:center;padding:4px 6px"><span class="log-res ${resCls}" style="font-size:12px">${isDraw?'DRAW':iWon?'WIN':'LOSE'}</span></td>
+    </tr>`;
+  }).join('');
+  return`<div class="screen"><div class="final">
+    <div class="final-title ${isDraw2?'':''}${iWin?'final-win':isDraw2?'':'final-lose'}">${iWin?'勝　利':isDraw2?'引き分け':'敗　北'}</div>
+    <div class="final-sub">${iWin?'見事な読み合いでした':isDraw2?'互角の勝負でした':'また挑戦してください'}</div>
+    <div class="final-scores">
+      <div class="final-score-item"><div class="label">${myName||'あなた'}</div><div class="val">${myScore}</div></div>
+      <div style="align-self:center;color:var(--border);font-size:20px">－</div>
+      <div class="final-score-item"><div class="label">${oppName||'相手'}</div><div class="val">${oppScore}</div></div>
+    </div>
+    ${hist.length>0?`<div class="panel" style="text-align:left;margin-bottom:1rem">
+      <div class="panel-title">全対戦履歴</div>
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr>
+          <th style="padding:3px 6px;color:var(--muted);font-weight:400;font-size:10px;border-bottom:1px solid var(--border)">回戦</th>
+          <th style="padding:3px 6px;color:var(--muted);font-weight:400;font-size:10px;border-bottom:1px solid var(--border)">${myName||'あなた'}</th>
+          <th style="border-bottom:1px solid var(--border)"></th>
+          <th style="padding:3px 6px;color:var(--muted);font-weight:400;font-size:10px;border-bottom:1px solid var(--border)">${oppName||'相手'}</th>
+          <th style="padding:3px 6px;color:var(--muted);font-weight:400;font-size:10px;border-bottom:1px solid var(--border)">結果</th>
+        </tr></thead>
+        <tbody>${histRows}</tbody>
+      </table>
+    </div>`:''}
+    <div style="display:flex;gap:.6rem;justify-content:center">
+      <button class="btn btn-primary btn-sm" onclick="rematch()">もう一度対戦</button>
+      <button class="btn btn-secondary btn-sm" onclick="setState('lobby')">ロビーに戻る</button>
+      <button class="btn btn-secondary btn-sm" onclick="location.href='../'">一覧に戻る</button>
+    </div>
+    ${renderChatUI()}
+  </div></div>`;
+}
+
+function handleCreate(){
+  const name=document.getElementById('name-create').value.trim()||'プレイヤー1';
+  const opts={
+    reveal:document.getElementById('opt-reveal').checked,
+    restrict:document.getElementById('opt-restrict').checked,
+    timelimit:parseInt(document.getElementById('opt-timelimit').value)||0,
+  };
+  createRoom(name,opts);
+}
+function handleJoin(){
+  const name=document.getElementById('name-join').value.trim()||'プレイヤー2';
+  const rid=document.getElementById('room-input').value.trim().toUpperCase();
+  if(!rid||rid.length!==4){toast('ルームIDを入力してください（4桁）');return;}
+  joinRoom(rid,name);
+}
+function selectCard(n){
+  const room=state.roomData;if(!room)return;
+  const me=state.playerNum;
+  if((me===1?room.p1_pick:room.p2_pick)!==null)return;
+  state.selectedCard=state.selectedCard===n?null:n;
+  render();
+}
+function copyText(text){
+  navigator.clipboard.writeText(text).then(()=>toast('コピーしました！')).catch(()=>{
+    const el=document.createElement('input');el.value=text;
+    document.body.appendChild(el);el.select();
+    document.execCommand('copy');document.body.removeChild(el);
+    toast('コピーしました！');
+  });
+}
+function openRuleModal(){document.getElementById('rule-modal').style.display='block';document.body.style.overflow='hidden';}
+function closeRuleModal(){document.getElementById('rule-modal').style.display='none';document.body.style.overflow='';}
+
+// エクスポート（type="module" 内の関数・変数をHTMLのonclickから呼べるようにする）
+window.state = state;
+window.toast = toast;
+window.handleCreate = handleCreate;
+window.handleJoin = handleJoin;
+window.copyText = copyText;
+window.openRuleModal = openRuleModal;
+window.closeRuleModal = closeRuleModal;
+window.openRevealModal = openRevealModal;
+window.closeRevealModal = closeRevealModal;
+window.revealRound = revealRound;
+window.doRevealRound = doRevealRound;
+window.markRevealDone = markRevealDone;
+window.openRestrictModal = openRestrictModal;
+window.closeRestrictModal = closeRestrictModal;
+window.confirmRestrict = confirmRestrict;
+window.selectCard = selectCard;
+window.submitCard = submitCard;
+window.cancelCard = cancelCard;
+window.rematch = rematch;
+window.setState = setState;
+
+window.addEventListener('load',()=>{
+  const params=new URLSearchParams(location.search);
+  const roomParam=params.get('room');
+  render();
+  if(roomParam){
+    setTimeout(()=>{
+      const el=document.getElementById('room-input');
+      if(el){el.value=roomParam.toUpperCase();toast('ルームID「'+roomParam.toUpperCase()+'」が入力されました。名前を入力して参加してください！',3500);}
+    },300);
+  }
+});
+</script>
+</body>
+</html>
