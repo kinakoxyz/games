@@ -334,7 +334,14 @@ function onRoomUpdate(state) {
 
   if (needsFullRender) {
     if(state.phase === "waiting") renderWaiting(state);
-    else if(state.phase === "playing") renderGame(state);
+    else if(state.phase === "playing") {
+      renderGame(state);
+      if (myPlayerIndex === 0 && state.players[1]?.isCpu && !state.p1_choice) {
+        if (!window._cpuTimer18) window._cpuTimer18 = setTimeout(() => { window._cpuTimer18 = null; window._doCpuTurn18(); }, 1500);
+      } else {
+        if (window._cpuTimer18) { clearTimeout(window._cpuTimer18); window._cpuTimer18 = null; }
+      }
+    }
     else if(state.phase === "reveal") renderReveal(state);
     else if(state.phase === "ended") renderEnded(state);
 
@@ -353,6 +360,22 @@ function onRoomUpdate(state) {
   }
 }
 
+window._doCpuTurn18 = async function() {
+  const snap = await get(ref(db, `games/rooms18/${roomCode}`));
+  const state = snap.val();
+  if (!state || state.phase !== "playing" || state.p1_choice) return;
+  
+  const f1 = state.fingers[1];
+  const validHands = [];
+  if (f1 >= COSTS.rock) validHands.push('rock');
+  if (f1 >= COSTS.scissors) validHands.push('scissors');
+  if (f1 >= COSTS.paper) validHands.push('paper');
+  
+  if (validHands.length > 0) {
+    const choice = validHands[Math.floor(Math.random() * validHands.length)];
+    update(ref(db, `games/rooms18/${roomCode}`), { p1_choice: choice });
+  }
+};
 function renderWaiting(state) {
   const isHost = myPlayerIndex === 0;
   const canStart = state.players.length === 2;
@@ -366,12 +389,19 @@ function renderWaiting(state) {
         <div style="height:1px;background:var(--border);margin:16px 0"></div>
         ${state.players.map((p,i) => `
           <div class="player-row">
-            <div class="avatar">${i===0?'H':'C'}</div>
+            <div class="avatar">${p.isCpu ? '🤖' : (i===0?'H':'C')}</div>
             <span style="flex:1">${h(p.name)}</span>
             ${i===myPlayerIndex?'<span style="font-size:11px;color:var(--gold)">あなた</span>':""}
+            ${p.isCpu?'<span style="font-size:11px;color:var(--text-muted)">CPU</span>':""}
           </div>
         `).join("")}
         <div style="margin-top:20px">
+          ${isHost ? `
+            <div style="display:flex; gap:8px; margin-bottom:12px;">
+              <button class="btn btn-ghost" style="flex:1;font-size:12px;" onclick="window._addCpu()" ${state.players.length>=2?'disabled':''}>[🤖] ADD_CPU</button>
+              <button class="btn btn-ghost" style="flex:1;font-size:12px;" onclick="window._removeCpu()" ${!(state.players.length===2&&state.players[1].isCpu)?'disabled':''}>[👋] REM_CPU</button>
+            </div>
+          ` : ""}
           ${isHost && canStart ? `<button class="btn btn-primary btn-full" onclick="window._startGame()">> EXECUTE_START</button>` : ""}
           ${!canStart ? `<p style="text-align:center;font-size:12px;color:var(--text-muted)"><span class="spinner"></span>相手の入室を待機中</p>` : ""}
           ${canStart && !isHost ? `<p style="text-align:center;font-size:12px;color:var(--text-muted)"><span class="spinner"></span>ホストの開始操作を待っています</p>` : ""}
@@ -382,6 +412,24 @@ function renderWaiting(state) {
     </div>
   `);
 }
+
+window._addCpu = async function() {
+  if (myPlayerIndex !== 0) return;
+  const snap = await get(ref(db, `games/rooms18/${roomCode}`));
+  const state = snap.val();
+  if (state.players.length >= 2) return;
+  state.players.push({ name: "CPU", isCpu: true });
+  await set(ref(db, `games/rooms18/${roomCode}`), state);
+};
+window._removeCpu = async function() {
+  if (myPlayerIndex !== 0) return;
+  const snap = await get(ref(db, `games/rooms18/${roomCode}`));
+  const state = snap.val();
+  if (state.players.length === 2 && state.players[1].isCpu) {
+    state.players.pop();
+    await set(ref(db, `games/rooms18/${roomCode}`), state);
+  }
+};
 
 window._startGame = function() {
   update(ref(db, `games/rooms18/${roomCode}`), { phase: "playing" });

@@ -80,6 +80,10 @@
 
   .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.1); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: middle; margin-right: 8px; }
   @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes cursor-pulse {
+    0%, 100% { box-shadow: 0 0 6px rgba(78,204,163,0.5); border-color: var(--primary); }
+    50%       { box-shadow: 0 0 14px rgba(78,204,163,0.9); border-color: var(--primary); }
+  }
 
   /* Game Specific Styles */
   .ball {
@@ -140,6 +144,18 @@
   .rule-section h3 { font-size:14px; color:var(--primary); border-bottom:1px dashed var(--primary); padding-bottom:6px; margin-bottom:10px; }
   .rule-row { display:flex; gap:10px; margin-bottom:8px; font-size:13px; line-height:1.6; }
 
+  /* ── 待合室の設定トグル ── */
+  .setting-group { margin-bottom: 14px; }
+  .setting-group label { margin-bottom: 6px; }
+  .toggle-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .toggle-btn {
+    flex: 1; min-width: 0; padding: 8px 4px; font-size: 12px; font-weight: 700;
+    border: 1px solid var(--border); border-radius: 8px; background: var(--surface2);
+    color: var(--text-muted); cursor: pointer; transition: all 0.15s; white-space: nowrap;
+    font-family: 'Noto Sans JP', sans-serif;
+  }
+  .toggle-btn.active { background: var(--primary); color: #121216; border-color: var(--primary); }
+  .toggle-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 </style>
 </head>
 <body>
@@ -165,6 +181,9 @@ const firebaseConfig = {
   measurementId: "G-T35ZKBRW05"
 };
 
+// ============================================================
+// 定数
+// ============================================================
 const BALL_COLORS = [
   {id: 0, color: "#ef4444", name: "Red"},
   {id: 1, color: "#2196f3", name: "Blue"},
@@ -176,6 +195,12 @@ const BALL_COLORS = [
   {id: 7, color: "#e91e63", name: "Pink"}
 ];
 
+// CPU強さ設定
+const CPU_LEVELS = { weak: "弱い", normal: "普通", strong: "強い" };
+
+// ============================================================
+// グローバル状態
+// ============================================================
 let app_fb, db, auth;
 let roomRef = null, roomListener = null;
 let myPlayerIndex = -1;
@@ -183,16 +208,22 @@ let myName = "";
 let roomCode = "";
 let currentState = null;
 
-// Local UI State
+// ローカル UI 状態
+// currentInput: 長さ holeCount のスパース配列（undefined = 空スロット）
+// currentSlot:  次に色が入力されるカーソル位置
 let currentInput = [];
+let currentSlot  = 0;
 let lastTurn = 0;
 let lastPhase = "";
-let selectedMode = 'vs';
-let selectedHoleCount = 4;
-let selectedColorCount = 6;
 let lastToastTime = 0;
 let previousMainStateStr = "";
 
+// セットアップ画面のローカル選択値（ルーム作成前のみ使用）
+let setupName = "";
+
+// ============================================================
+// Firebase 初期化
+// ============================================================
 try {
   app_fb = initializeApp(firebaseConfig);
   db = getDatabase(app_fb);
@@ -200,31 +231,108 @@ try {
   signInAnonymously(auth).catch(e => console.error("Auth Error", e));
 } catch(e) { console.error("Firebase Init Error", e); }
 
+// ============================================================
+// ユーティリティ
+// ============================================================
 const el = document.getElementById("app");
 function r(html) { el.innerHTML = html; }
 function h(s) { return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 function generateRoomCode() { return String(Math.floor(1000 + Math.random() * 9000)); }
 
-function calculateHitBlow(secret, guess, holeCount = 4) {
-  let hit = 0; let blow = 0;
-  for(let i=0; i<holeCount; i++) {
-    if(guess[i] === secret[i]) hit++;
-    else if(secret.includes(guess[i])) blow++;
+function calculateHitBlow(secret, guess, holeCount) {
+  let hit = 0, blow = 0;
+  for (let i = 0; i < holeCount; i++) {
+    if (guess[i] === secret[i]) hit++;
+    else if (secret.includes(guess[i])) blow++;
   }
   return { hit, blow };
 }
 
-function listenRoom(code, cb) {
-  if(!db) return;
-  if(roomListener) off(ref(db, `games/hb/${roomCode}`));
-  roomRef = ref(db, `games/hb/${code}`);
-  roomListener = onValue(roomRef, snap => {
-    if(snap.exists()) cb(snap.val());
+function generateRandomCode(colorCount, holeCount) {
+  const pool = [...Array(colorCount)].map((_, i) => i);
+  const code = [];
+  for (let i = 0; i < holeCount; i++) {
+    const idx = Math.floor(Math.random() * pool.length);
+    code.push(pool.splice(idx, 1)[0]);
+  }
+  return code;
+}
+
+// CPUの推測：強さによってロジックを変える
+function cpuGuess(state, history) {
+  const holeCount  = state.holeCount  || 4;
+  const colorCount = state.colorCount || 6;
+  const level      = state.cpuLevel   || "normal";
+
+  // 弱い: 完全ランダム
+  if (level === "weak") return generateRandomCode(colorCount, holeCount);
+
+  // 普通: 過去の Blow を考慮してランダム候補を絞る（簡易）
+  // 強い: 完全整合フィルタリング
+  const allCodes = generateAllCodes(colorCount, holeCount);
+
+  if (level === "normal") {
+    // 候補からランダムに選ぶが、Hit数が最大だったものを優先
+    const candidates = filterConsistent(allCodes, history, holeCount);
+    return candidates[Math.floor(Math.random() * Math.min(candidates.length, 8))] || generateRandomCode(colorCount, holeCount);
+  }
+
+  // strong: 整合候補から先頭（最も情報量が多い候補など）を選ぶ
+  const candidates = filterConsistent(allCodes, history, holeCount);
+  if (candidates.length === 0) return generateRandomCode(colorCount, holeCount);
+  // 候補がある場合は先頭を返す（決定論的な絞り込み）
+  return candidates[0];
+}
+
+function generateAllCodes(colorCount, holeCount) {
+  // 最大色数が少ない場合のみ全列挙（計算量制限）
+  if (colorCount > 7 || holeCount > 4) return [generateRandomCode(colorCount, holeCount)];
+  const result = [];
+  const gen = (arr, start) => {
+    if (arr.length === holeCount) { result.push([...arr]); return; }
+    for (let c = 0; c < colorCount; c++) {
+      if (!arr.includes(c)) gen([...arr, c], c);
+    }
+  };
+  gen([], 0);
+  return result;
+}
+
+function filterConsistent(allCodes, history, holeCount) {
+  if (!history || history.length === 0) return allCodes;
+  return allCodes.filter(code => {
+    return history.every(entry => {
+      // vs モードの場合は p0_guess/p1_guess 形式、coop は guess 形式
+      const guess = entry.p1_guess || entry.guess;
+      const hit   = entry.p1_hit   !== undefined ? entry.p1_hit  : entry.hit;
+      const blow  = entry.p1_blow  !== undefined ? entry.p1_blow : entry.blow;
+      if (!guess) return true;
+      const res = calculateHitBlow(code, guess, holeCount);
+      return res.hit === hit && res.blow === blow;
+    });
   });
 }
 
+// ============================================================
+// Firebase リスナー
+// ============================================================
+function listenRoom(code, cb) {
+  if (!db) return;
+  if (roomListener) off(ref(db, `games/hb/${roomCode}`));
+  roomRef = ref(db, `games/hb/${code}`);
+  roomListener = onValue(roomRef, snap => {
+    if (snap.exists()) cb(snap.val());
+  });
+}
+
+// ============================================================
+// 起動
+// ============================================================
 showSetup();
 
+// ============================================================
+// セットアップ画面
+// ============================================================
 function showSetup() {
   r(`
     <div class="screen">
@@ -233,42 +341,21 @@ function showSetup() {
       <div class="card">
         <div class="card-title">🆕 ルームを作成する</div>
         <label>あなたの名前</label>
-        <input type="text" id="nameInput" placeholder="例: エージェント" value="${h(myName)}" maxlength="10" style="margin-bottom:16px">
-        
-        <label>ゲームモード</label>
-        <div style="display:flex; gap:8px; margin-bottom: 16px;">
-          <button class="btn ${selectedMode === 'vs' ? 'btn-primary' : 'btn-ghost'}" style="flex:1; padding: 8px; font-size: 13px;" onclick="window._setMode('vs')">⚔️ 対戦</button>
-          <button class="btn ${selectedMode === 'vs-speed' ? 'btn-primary' : 'btn-ghost'}" style="flex:1; padding: 8px; font-size: 13px;" onclick="window._setMode('vs-speed')">🏁 早解き</button>
-          <button class="btn ${selectedMode === 'coop' ? 'btn-primary' : 'btn-ghost'}" style="flex:1; padding: 8px; font-size: 13px;" onclick="window._setMode('coop')">🤝 協力</button>
-        </div>
-
-        <label>玉の数</label>
-        <div style="display:flex; gap:8px; margin-bottom: 16px;">
-          <button class="btn ${selectedHoleCount === 3 ? 'btn-primary' : 'btn-ghost'}" style="flex:1; padding: 8px;" onclick="window._setHoleCount(3)">3個</button>
-          <button class="btn ${selectedHoleCount === 4 ? 'btn-primary' : 'btn-ghost'}" style="flex:1; padding: 8px;" onclick="window._setHoleCount(4)">4個</button>
-          <button class="btn ${selectedHoleCount === 5 ? 'btn-primary' : 'btn-ghost'}" style="flex:1; padding: 8px;" onclick="window._setHoleCount(5)">5個</button>
-        </div>
-
-        <label>色の数</label>
-        <div style="display:flex; gap:8px; margin-bottom: 16px;">
-          <button class="btn ${selectedColorCount === 6 ? 'btn-primary' : 'btn-ghost'}" style="flex:1; padding: 8px;" onclick="window._setColorCount(6)">6色</button>
-          <button class="btn ${selectedColorCount === 7 ? 'btn-primary' : 'btn-ghost'}" style="flex:1; padding: 8px;" onclick="window._setColorCount(7)">7色</button>
-          <button class="btn ${selectedColorCount === 8 ? 'btn-primary' : 'btn-ghost'}" style="flex:1; padding: 8px;" onclick="window._setColorCount(8)">8色</button>
-        </div>
-
+        <input type="text" id="nameInput" placeholder="例: エージェント" value="${h(setupName)}" maxlength="10" style="margin-bottom:20px">
         <button class="btn btn-primary btn-full" onclick="window._createRoom()">ルームを作成</button>
       </div>
 
-      <div style="display:flex;align-items:center;gap:10px;font-size:12px;color:var(--text-muted);margin:16px 0;">
+      <div style="display:flex;align-items:center;gap:10px;font-size:12px;color:var(--text-muted);margin:8px 0 16px;">
         <div style="flex:1;height:1px;background:var(--border);"></div> または <div style="flex:1;height:1px;background:var(--border);"></div>
       </div>
       
       <div class="card">
         <div class="card-title">🚪 ルームに参加する</div>
         <label>あなたの名前</label>
-        <input type="text" id="joinNameInput" placeholder="例: エージェント" value="${h(myName)}" maxlength="10" style="margin-bottom:16px">
+        <input type="text" id="joinNameInput" placeholder="例: エージェント" value="${h(setupName)}" maxlength="10" style="margin-bottom:16px">
         <label>ルームID（4桁）</label>
-        <input type="text" id="roomInput" placeholder="0000" maxlength="4" inputmode="numeric" style="margin-bottom:16px;letter-spacing:8px;text-align:center;font-family:'Jura',monospace;font-size:24px;font-weight:700;">
+        <input type="text" id="roomInput" placeholder="0000" maxlength="4" inputmode="numeric"
+          style="margin-bottom:16px;letter-spacing:8px;text-align:center;font-family:'Jura',monospace;font-size:24px;font-weight:700;">
         <button class="btn btn-ghost btn-full" onclick="window._joinRoom()">参加する</button>
       </div>
 
@@ -278,37 +365,25 @@ function showSetup() {
   `);
 }
 
-window._setMode = function(mode) {
-  selectedMode = mode;
-  const nameInp = document.getElementById("nameInput");
-  if(nameInp) myName = nameInp.value; // 名前を保持
-  showSetup();
-};
-
-window._setHoleCount = function(count) {
-  selectedHoleCount = count;
-  const nameInp = document.getElementById("nameInput");
-  if(nameInp) myName = nameInp.value; // 名前を保持
-  showSetup();
-};
-
-window._setColorCount = function(count) {
-  selectedColorCount = count;
-  const nameInp = document.getElementById("nameInput");
-  if(nameInp) myName = nameInp.value; // 名前を保持
-  showSetup();
-};
-
+// ============================================================
+// ルーム作成
+// ============================================================
 window._createRoom = async function() {
   const name = document.getElementById("nameInput")?.value.trim();
-  if(!name) { alert("名前を入力してください"); return; }
-  myName = name; roomCode = generateRoomCode(); myPlayerIndex = 0;
+  if (!name) { alert("名前を入力してください"); return; }
+  setupName = name;
+  myName = name;
+  roomCode = generateRoomCode();
+  myPlayerIndex = 0;
+
+  // デフォルト設定（待合室で変更可能）
   const state = {
     phase: "waiting",
-    mode: selectedMode,
-    holeCount: selectedHoleCount,
-    colorCount: selectedColorCount,
-    players: [{name}],
+    mode: "vs",
+    holeCount: 4,
+    colorCount: 6,
+    cpuLevel: "normal",
+    players: [{ name, isHost: true }],
     secretCodes: false,
     guesses: false,
     history: false,
@@ -319,272 +394,394 @@ window._createRoom = async function() {
   listenRoom(roomCode, onRoomUpdate);
 };
 
+// ============================================================
+// ルーム参加
+// ============================================================
 window._joinRoom = async function() {
-  const name = (document.getElementById("joinNameInput")?.value || document.getElementById("nameInput")?.value).trim();
-  const code = (document.getElementById("roomInput")?.value||"").trim().toUpperCase();
-  if(!name) { alert("名前を入力してください"); return; }
-  if(code.length !== 4) { alert("正しい部屋コードを入力してください"); return; }
-  myName = name; roomCode = code;
+  const nameEl = document.getElementById("joinNameInput") || document.getElementById("nameInput");
+  const name = nameEl?.value.trim();
+  const code = (document.getElementById("roomInput")?.value || "").trim();
+  if (!name) { alert("名前を入力してください"); return; }
+  if (code.length !== 4) { alert("正しい部屋コードを入力してください"); return; }
+  setupName = name;
+  myName = name;
+  roomCode = code;
   const snap = await get(ref(db, `games/hb/${code}`));
-  if(!snap.exists()) { alert("部屋が見つかりません"); return; }
+  if (!snap.exists()) { alert("部屋が見つかりません"); return; }
   const state = snap.val();
-  
+  if (state.phase !== "waiting") { alert("このルームはすでにゲームが始まっています"); return; }
+
   const idx = state.players.findIndex(p => p.name === name);
   if (idx !== -1) {
     myPlayerIndex = idx;
   } else {
-    if(state.players.length >= 2) { alert("この部屋はすでに満員です"); return; }
-    myPlayerIndex = 1;
-    state.players.push({name});
+    const maxPlayers = state.mode === "coop" ? 4 : 2;
+    if (state.players.length >= maxPlayers) { alert("この部屋は定員に達しています"); return; }
+    myPlayerIndex = state.players.length;
+    state.players.push({ name });
     await update(ref(db, `games/hb/${code}`), { players: state.players });
   }
   listenRoom(roomCode, onRoomUpdate);
 };
 
+// ============================================================
+// メインのルーム更新ハンドラ
+// ============================================================
 function onRoomUpdate(state) {
   currentState = state;
 
-  // State transitions handled by host
+  // ──────────────────────────────────────────────────────────
+  // ホストによる状態遷移ロジック
+  // ──────────────────────────────────────────────────────────
   if (myPlayerIndex === 0) {
-    if (state.mode === 'vs') {
-      // Both set secret codes -> Go to playing
-      if (state.phase === "setting" && state.secretCodes && state.secretCodes[0] && state.secretCodes[1]) {
-        update(ref(db, `games/hb/${roomCode}`), { phase: "playing", turn: 1, guesses: false, history: false });
-        return;
-      }
-      // Both submitted guesses -> Calculate and proceed
-      if (state.phase === "playing" && state.guesses && state.guesses[0] && state.guesses[1]) {
-        const g0 = state.guesses[0]; const g1 = state.guesses[1];
-        const s0 = state.secretCodes[0]; const s1 = state.secretCodes[1];
-        
-        const res0 = calculateHitBlow(s1, g0, state.holeCount || 4); // P0 guesses P1's secret
-        const res1 = calculateHitBlow(s0, g1, state.holeCount || 4); // P1 guesses P0's secret
-  
-        const hist = state.history || [];
-        hist.push({ p0_guess: g0, p0_hit: res0.hit, p0_blow: res0.blow, p1_guess: g1, p1_hit: res1.hit, p1_blow: res1.blow });
-  
-        let nextPhase = "playing";
-        let winner = -1;
-        if (res0.hit === (state.holeCount || 4) && res1.hit === (state.holeCount || 4)) { winner = -1; nextPhase = "ended"; }
-        else if (res0.hit === (state.holeCount || 4)) { winner = 0; nextPhase = "ended"; }
-        else if (res1.hit === (state.holeCount || 4)) { winner = 1; nextPhase = "ended"; }
-        else if (state.turn >= 8) { winner = -1; nextPhase = "ended"; }
-  
-        update(ref(db, `games/hb/${roomCode}`), {
-          phase: nextPhase,
-          history: hist,
-          guesses: false, // Reset guesses for next turn
-          drafts: false,
-          turn: nextPhase === "ended" ? state.turn : state.turn + 1,
-          winner: winner
-        });
-        return;
-      }
-    } else if (state.mode === 'vs-speed') {
-      if (state.phase === "playing" && state.guesses && state.guesses[0] && state.guesses[1]) {
-        const g0 = state.guesses[0]; const g1 = state.guesses[1];
-        const secret = state.systemSecret;
-        
-        const res0 = calculateHitBlow(secret, g0, state.holeCount || 4);
-        const res1 = calculateHitBlow(secret, g1, state.holeCount || 4);
-  
-        const hist = state.history || [];
-        hist.push({ p0_guess: g0, p0_hit: res0.hit, p0_blow: res0.blow, p1_guess: g1, p1_hit: res1.hit, p1_blow: res1.blow });
-  
-        let nextPhase = "playing";
-        let winner = -1;
-        if (res0.hit === (state.holeCount || 4) && res1.hit === (state.holeCount || 4)) { winner = -1; nextPhase = "ended"; }
-        else if (res0.hit === (state.holeCount || 4)) { winner = 0; nextPhase = "ended"; }
-        else if (res1.hit === (state.holeCount || 4)) { winner = 1; nextPhase = "ended"; }
-        else if (state.turn >= 8) { winner = -1; nextPhase = "ended"; }
-  
-        update(ref(db, `games/hb/${roomCode}`), {
-          phase: nextPhase,
-          history: hist,
-          guesses: false,
-          drafts: false,
-          turn: nextPhase === "ended" ? state.turn : state.turn + 1,
-          winner: winner
-        });
-        return;
-      }
-    } else if (state.mode === 'coop') {
-      // Coop mode submission
-      if (state.phase === "playing" && state.guesses && state.guesses[state.activePlayerIndex]) {
-        const guess = state.guesses[state.activePlayerIndex];
-        const secret = state.systemSecret;
-        const res = calculateHitBlow(secret, guess, state.holeCount || 4);
 
-        const hist = state.history || [];
-        hist.push({ playerIndex: state.activePlayerIndex, guess: guess, hit: res.hit, blow: res.blow, turn: state.turn });
+    // 【対戦】両者がシークレットを設定済み → playing へ
+    if (state.mode === "vs" && state.phase === "setting"
+        && state.secretCodes?.[0] && state.secretCodes?.[1]) {
+      update(ref(db, `games/hb/${roomCode}`), { phase: "playing", turn: 1, guesses: false, history: false });
+      return;
+    }
 
-        let nextPhase = "playing";
-        let winner = -1; // -1: failed, 2: success
-        let nextActive = 1 - state.activePlayerIndex;
-        
-        if (res.hit === (state.holeCount || 4)) { winner = 2; nextPhase = "ended"; }
-        else if (state.turn >= 16) { winner = -1; nextPhase = "ended"; }
+    // 【対戦 / 早解き】両者が予想を送信済み → 判定
+    if ((state.mode === "vs" || state.mode === "vs-speed") && state.phase === "playing"
+        && state.guesses?.[0] && state.guesses?.[1]) {
+      const holeCount = state.holeCount || 4;
+      const g0 = state.guesses[0];
+      const g1 = state.guesses[1];
+      const secret0 = state.mode === "vs" ? state.secretCodes[1] : state.systemSecret; // p0 が当てる相手の secret
+      const secret1 = state.mode === "vs" ? state.secretCodes[0] : state.systemSecret;
+      const res0 = calculateHitBlow(secret0, g0, holeCount);
+      const res1 = calculateHitBlow(secret1, g1, holeCount);
+      const hist = state.history || [];
+      hist.push({ p0_guess: g0, p0_hit: res0.hit, p0_blow: res0.blow,
+                  p1_guess: g1, p1_hit: res1.hit, p1_blow: res1.blow });
+      let winner = -1, nextPhase = "playing";
+      if (res0.hit === holeCount && res1.hit === holeCount) { winner = -1; nextPhase = "ended"; }
+      else if (res0.hit === holeCount)                      { winner = 0;  nextPhase = "ended"; }
+      else if (res1.hit === holeCount)                      { winner = 1;  nextPhase = "ended"; }
+      else if (state.turn >= 8)                             { winner = -1; nextPhase = "ended"; }
+      update(ref(db, `games/hb/${roomCode}`), {
+        phase: nextPhase, history: hist,
+        guesses: false, drafts: false,
+        turn: nextPhase === "ended" ? state.turn : state.turn + 1,
+        winner
+      });
+      return;
+    }
 
-        update(ref(db, `games/hb/${roomCode}`), {
-          phase: nextPhase,
-          history: hist,
-          guesses: false,
-          drafts: false,
-          turn: state.turn + 1,
-          activePlayerIndex: nextActive,
-          winner: winner
-        });
-        return;
-      }
+    // 【協力】アクティブプレイヤーが予想を送信 → 判定
+    if (state.mode === "coop" && state.phase === "playing"
+        && state.guesses?.[state.activePlayerIndex] !== undefined
+        && state.guesses?.[state.activePlayerIndex] !== false) {
+      const holeCount = state.holeCount || 4;
+      const guess = state.guesses[state.activePlayerIndex];
+      const res = calculateHitBlow(state.systemSecret, guess, holeCount);
+      const hist = state.history || [];
+      hist.push({ playerIndex: state.activePlayerIndex, guess, hit: res.hit, blow: res.blow, turn: state.turn });
+      let winner = -1, nextPhase = "playing";
+      if (res.hit === holeCount)   { winner = 2; nextPhase = "ended"; }
+      else if (state.turn >= 16)   { winner = -1; nextPhase = "ended"; }
+      update(ref(db, `games/hb/${roomCode}`), {
+        phase: nextPhase, history: hist,
+        guesses: false, drafts: false,
+        turn: state.turn + 1,
+        activePlayerIndex: (state.activePlayerIndex + 1) % state.players.length,
+        winner
+      });
+      return;
     }
   }
 
-  // Clear local input on turn/phase change
-  if (lastTurn !== state.turn || lastPhase !== state.phase) {
+  // ──────────────────────────────────────────────────────────
+  // ターン／フェーズ変化でローカル入力をリセット
+  // ──────────────────────────────────────────────────────────
+  const phaseOrTurnChanged = (lastTurn !== state.turn || lastPhase !== state.phase);
+  if (phaseOrTurnChanged) {
     currentInput = [];
+    currentSlot  = 0;
     lastTurn = state.turn;
     lastPhase = state.phase;
   }
 
-  // Check for new chat/stamp messages
+  // ──────────────────────────────────────────────────────────
+  // チャットトースト
+  // ──────────────────────────────────────────────────────────
   const msgs = state.chatMessages || [];
   if (msgs.length > 0) {
     const lastMsg = msgs[msgs.length - 1];
     if (lastMsg.timestamp > lastToastTime) {
       lastToastTime = lastMsg.timestamp;
-      showToast(state.players[lastMsg.senderIndex].name, lastMsg.text);
+      showToast(state.players[lastMsg.senderIndex]?.name || "?", lastMsg.text);
     }
   }
 
-  // 画面全体を描画し直す必要があるか（フェーズ、ターン、履歴などの主要データ）をチェック
+  // ──────────────────────────────────────────────────────────
+  // 差分描画判定
+  // フェーズ・ターン変化は必ず全体再描画（部分更新のDOM不整合を防ぐ）
+  // ──────────────────────────────────────────────────────────
   const mainState = {
-    phase: state.phase,
-    turn: state.turn,
-    history: state.history,
-    guesses: state.guesses,
-    secretCodes: state.secretCodes,
-    winner: state.winner,
-    activePlayerIndex: state.activePlayerIndex,
-    players: state.players
+    phase: state.phase, turn: state.turn, history: state.history,
+    guesses: state.guesses, secretCodes: state.secretCodes,
+    winner: state.winner, activePlayerIndex: state.activePlayerIndex,
+    players: state.players,
+    // waiting 画面での設定変更も再描画トリガーに含める
+    mode: state.mode, holeCount: state.holeCount,
+    colorCount: state.colorCount, cpuLevel: state.cpuLevel
   };
   const currentMainStateStr = JSON.stringify(mainState);
-  const needsFullRender = (previousMainStateStr !== currentMainStateStr);
+  // フェーズ・ターン変化は差分に関わらず強制フルレンダー
+  const needsFullRender = phaseOrTurnChanged || (previousMainStateStr !== currentMainStateStr);
 
   if (needsFullRender) {
-    // 主要な状態が変わった場合のみ、画面全体を再構築
-    if(state.phase === "waiting") renderWaiting(state);
-    else if(state.phase === "setting") renderSetting(state);
-    else if(state.phase === "playing") renderGame(state);
-    else if(state.phase === "ended") renderEnded(state);
-
     previousMainStateStr = currentMainStateStr;
 
-    // 全体描画後はチャットを一番下にする
+    if (state.phase === "waiting")  { renderWaiting(state); }
+    else if (state.phase === "setting") {
+      renderSetting(state);
+      scheduleCpuTurn(state);
+    }
+    else if (state.phase === "playing") {
+      renderGame(state);
+      scheduleCpuTurn(state);
+    }
+    else if (state.phase === "ended") { renderEnded(state); }
+
     setTimeout(() => {
-      const logBox = document.getElementById('chatLogBox');
+      // チャットを最下部へ
+      const logBox = document.getElementById("chatLogBox");
       if (logBox) logBox.scrollTop = logBox.scrollHeight;
+      // 履歴ボックスを最下部へ（全体再描画後）
+      scrollHistoryToBottom();
     }, 0);
+
   } else {
-    // ドラフトやチャットのみの変更なら、対象のDOMだけを部分更新する（入力中の中断を防ぐ）
-
-    // 自分の入力欄の部分更新
-    const myInputContainer = document.getElementById('my-input-container');
-    if (myInputContainer) {
-      myInputContainer.innerHTML = [...Array(state.holeCount || 4)].map((_, i) => {
-         const c = currentInput[i];
-         if (c !== undefined) return `<div class="ball" style="background:${BALL_COLORS[c].color}"></div>`;
-         else return `<div class="ball empty"></div>`;
-      }).join('');
-      
-      const submitBtn = document.getElementById('submit-btn');
-      if (submitBtn) {
-        submitBtn.disabled = currentInput.length !== (state.holeCount || 4);
-      }
-      
-      BALL_COLORS.slice(0, state.colorCount || 6).forEach(bc => {
-        const btn = document.getElementById(`color-btn-${bc.id}`);
-        if (btn) btn.disabled = currentInput.includes(bc.id);
-      });
-    }
-
-    // チャットの部分更新
-    const logBox = document.getElementById('chatLogBox');
-    if (logBox) {
-      // 一番下付近にいる時だけ追従スクロールさせる
-      const isAtBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight <= 20;
-      logBox.innerHTML = getChatLogHtml(state);
-      if (isAtBottom) logBox.scrollTop = logBox.scrollHeight;
-    }
-
-    // 相手のドラフト（対戦モード）の部分更新
-    const oppDraftContainer = document.getElementById('opp-draft-container');
-    if (oppDraftContainer) {
-      const oppReady = state.guesses && state.guesses[1 - myPlayerIndex];
-      const oppDraft = state.drafts && state.drafts[1 - myPlayerIndex] ? state.drafts[1 - myPlayerIndex] : [];
-      oppDraftContainer.innerHTML = [...Array(state.holeCount || 4)].map((_, i) => {
-         if (oppReady) return `<div class="ball-small" style="background:var(--primary); border:none;"></div>`;
-         const c = oppDraft[i];
-         if (c !== undefined) return `<div class="ball-small" style="background:${BALL_COLORS[c].color}"></div>`;
-         else return `<div class="ball-small empty"></div>`;
-      }).join('');
-    }
-
-    // 相手のドラフト（協力モード）の部分更新
-    const activeDraftContainer = document.getElementById('active-draft-container');
-    if (activeDraftContainer && state.activePlayerIndex !== myPlayerIndex) {
-      const activeDraft = state.drafts && state.drafts[state.activePlayerIndex] ? state.drafts[state.activePlayerIndex] : [];
-      activeDraftContainer.innerHTML = [...Array(state.holeCount || 4)].map((_, i) => {
-         const c = activeDraft[i];
-         if (c !== undefined) return `<div class="ball" style="background:${BALL_COLORS[c].color}"></div>`;
-         else return `<div class="ball empty"></div>`;
-      }).join('');
-    }
+    // ── 部分更新：入力欄 ──
+    partialUpdateInput(state);
+    // ── 部分更新：チャット ──
+    partialUpdateChat(state);
+    // ── 部分更新：相手ドラフト（対戦） ──
+    partialUpdateOppDraft(state);
+    // ── 部分更新：アクティブドラフト（協力） ──
+    partialUpdateActiveDraft(state);
   }
 }
 
+// ──────────────────────────────────────────────────────────
+// CPU ターンのスケジューリング
+// ──────────────────────────────────────────────────────────
+function scheduleCpuTurn(state) {
+  if (myPlayerIndex !== 0) return;
+
+  let needsCpu = false;
+  if (state.phase === "setting" && state.players[1]?.isCpu && !state.secretCodes?.[1]) needsCpu = true;
+  if (state.phase === "playing") {
+    if (state.mode === "coop" && state.players[state.activePlayerIndex]?.isCpu) needsCpu = true;
+    if ((state.mode === "vs" || state.mode === "vs-speed") && state.players[1]?.isCpu && !state.guesses?.[1]) needsCpu = true;
+  }
+
+  if (needsCpu) {
+    if (!window._cpuTimerHb) {
+      window._cpuTimerHb = setTimeout(() => {
+        window._cpuTimerHb = null;
+        window._doCpuTurnHb();
+      }, 1200);
+    }
+  } else {
+    if (window._cpuTimerHb) { clearTimeout(window._cpuTimerHb); window._cpuTimerHb = null; }
+  }
+}
+
+// ──────────────────────────────────────────────────────────
+// 履歴ボックスを最下部にスクロール（最新ターンが常に見える）
+// ──────────────────────────────────────────────────────────
+function scrollHistoryToBottom() {
+  document.querySelectorAll(".history-box").forEach(box => {
+    box.scrollTop = box.scrollHeight;
+  });
+}
+
+// ──────────────────────────────────────────────────────────
+// 部分更新ヘルパー
+// ──────────────────────────────────────────────────────────
+function partialUpdateInput(state) {
+  const myInputContainer = document.getElementById("my-input-container");
+  if (!myInputContainer) return;
+  const holeCount  = state.holeCount  || 4;
+  const colorCount = state.colorCount || 6;
+  const hasAny = usedColors().length > 0;
+  const full   = isInputFull(holeCount);
+  const cursorFilled = currentInput[currentSlot] !== undefined;
+
+  myInputContainer.innerHTML = renderSlotsHtml(holeCount, false);
+
+  const submitBtn = document.getElementById("submit-btn");
+  if (submitBtn) submitBtn.disabled = !full;
+
+  document.querySelectorAll('[onclick="window._removeLastColor()"]').forEach(btn => {
+    btn.disabled = !hasAny;
+  });
+  document.querySelectorAll('[onclick="window._clearColor()"]').forEach(btn => {
+    btn.disabled = !hasAny;
+  });
+
+  BALL_COLORS.slice(0, colorCount).forEach(bc => {
+    const btn = document.getElementById(`color-btn-${bc.id}`);
+    if (btn) btn.disabled = usedColors().includes(bc.id) || cursorFilled;
+  });
+}
+
+function partialUpdateChat(state) {
+  const logBox = document.getElementById("chatLogBox");
+  if (!logBox) return;
+  const isAtBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight <= 20;
+  logBox.innerHTML = getChatLogHtml(state);
+  if (isAtBottom) logBox.scrollTop = logBox.scrollHeight;
+}
+
+function partialUpdateOppDraft(state) {
+  const oppDraftContainer = document.getElementById("opp-draft-container");
+  if (!oppDraftContainer) return;
+  const oppReady = state.guesses?.[1 - myPlayerIndex];
+  const oppDraft = state.drafts?.[1 - myPlayerIndex] || [];
+  oppDraftContainer.innerHTML = [...Array(state.holeCount || 4)].map((_, i) => {
+    if (oppReady) return `<div class="ball" style="background:var(--primary);box-shadow:0 0 8px rgba(78,204,163,0.5);"></div>`;
+    const c = oppDraft[i];
+    return c !== undefined
+      ? `<div class="ball" style="background:${BALL_COLORS[c].color}"></div>`
+      : `<div class="ball empty"></div>`;
+  }).join("");
+}
+
+function partialUpdateActiveDraft(state) {
+  const activeDraftContainer = document.getElementById("active-draft-container");
+  if (!activeDraftContainer || state.activePlayerIndex === myPlayerIndex) return;
+  const activeDraft = state.drafts?.[state.activePlayerIndex] || [];
+  activeDraftContainer.innerHTML = [...Array(state.holeCount || 4)].map((_, i) => {
+    const c = activeDraft[i];
+    return c !== undefined
+      ? `<div class="ball" style="background:${BALL_COLORS[c].color}"></div>`
+      : `<div class="ball empty"></div>`;
+  }).join("");
+}
+
+// ──────────────────────────────────────────────────────────
+// トースト
+// ──────────────────────────────────────────────────────────
 function showToast(name, text) {
-  let container = document.getElementById('toast-container');
+  let container = document.getElementById("toast-container");
   if (!container) {
-    container = document.createElement('div');
-    container.id = 'toast-container';
-    container.className = 'toast-container';
+    container = document.createElement("div");
+    container.id = "toast-container";
+    container.className = "toast-container";
     document.body.appendChild(container);
   }
-  const toast = document.createElement('div');
-  toast.className = 'toast';
+  const toast = document.createElement("div");
+  toast.className = "toast";
   toast.innerHTML = `<span style="color:var(--primary);margin-right:8px;">${h(name)}:</span>${h(text)}`;
   container.appendChild(toast);
   setTimeout(() => toast.remove(), 3000);
 }
 
+// ============================================================
+// 待合室（ルーム設定を集約）
+// ============================================================
 function renderWaiting(state) {
   const isHost = myPlayerIndex === 0;
-  const canStart = state.players.length === 2;
+  const hasCpu = state.players.some(p => p.isCpu);
+  let canStart = state.mode === "coop" ? state.players.length >= 1 : state.players.length === 2;
+  const maxPlayers = state.mode === "coop" ? 4 : 2;
+  const canAddCpu = state.players.length < maxPlayers;
+
+  // ホスト以外には設定を読み取り専用で表示
+  const modeLabels = { vs: "⚔️ 対戦", "vs-speed": "🏁 早解き", coop: "🤝 協力" };
+
+  const settingsSection = isHost ? `
+    <div style="margin-top:16px; padding-top:16px; border-top:1px dashed var(--border);">
+      <div style="font-size:12px; color:var(--primary); font-weight:700; letter-spacing:1px; margin-bottom:12px;">⚙ ゲーム設定</div>
+
+      <div class="setting-group">
+        <label>ゲームモード</label>
+        <div class="toggle-row">
+          <button class="toggle-btn ${state.mode==='vs'?'active':''}" onclick="window._updateSetting('mode','vs')">⚔️ 対戦</button>
+          <button class="toggle-btn ${state.mode==='vs-speed'?'active':''}" onclick="window._updateSetting('mode','vs-speed')">🏁 早解き</button>
+          <button class="toggle-btn ${state.mode==='coop'?'active':''}" onclick="window._updateSetting('mode','coop')">🤝 協力</button>
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <label>CPUの強さ</label>
+        <div class="toggle-row">
+          <button class="toggle-btn ${state.cpuLevel==='weak'?'active':''}" onclick="window._updateSetting('cpuLevel','weak')" ${!hasCpu?'disabled':''}>弱い</button>
+          <button class="toggle-btn ${state.cpuLevel==='normal'?'active':''}" onclick="window._updateSetting('cpuLevel','normal')" ${!hasCpu?'disabled':''}>普通</button>
+          <button class="toggle-btn ${state.cpuLevel==='strong'?'active':''}" onclick="window._updateSetting('cpuLevel','strong')" ${!hasCpu?'disabled':''}>強い</button>
+        </div>
+        ${!hasCpu ? `<div style="font-size:11px; color:var(--text-muted); margin-top:4px;">※ CPU を追加すると選択できます</div>` : ''}
+      </div>
+
+      <div class="setting-group">
+        <label>玉の数</label>
+        <div class="toggle-row">
+          <button class="toggle-btn ${state.holeCount===3?'active':''}" onclick="window._updateSetting('holeCount',3)">3個</button>
+          <button class="toggle-btn ${state.holeCount===4?'active':''}" onclick="window._updateSetting('holeCount',4)">4個</button>
+          <button class="toggle-btn ${state.holeCount===5?'active':''}" onclick="window._updateSetting('holeCount',5)">5個</button>
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <label>色の数</label>
+        <div class="toggle-row">
+          <button class="toggle-btn ${state.colorCount===6?'active':''}" onclick="window._updateSetting('colorCount',6)">6色</button>
+          <button class="toggle-btn ${state.colorCount===7?'active':''}" onclick="window._updateSetting('colorCount',7)">7色</button>
+          <button class="toggle-btn ${state.colorCount===8?'active':''}" onclick="window._updateSetting('colorCount',8)">8色</button>
+        </div>
+      </div>
+    </div>
+  ` : `
+    <div style="margin-top:16px; padding-top:16px; border-top:1px dashed var(--border); font-size:12px; color:var(--text-muted);">
+      <div style="font-size:12px; color:var(--primary); font-weight:700; letter-spacing:1px; margin-bottom:8px;">⚙ ゲーム設定</div>
+      <div>モード: <strong style="color:var(--text);">${modeLabels[state.mode] || state.mode}</strong></div>
+      <div style="margin-top:4px;">玉の数: <strong style="color:var(--text);">${state.holeCount || 4}個</strong> &nbsp; 色の数: <strong style="color:var(--text);">${state.colorCount || 6}色</strong></div>
+    </div>
+  `;
+
   r(`
     <div class="screen">
-      <div class="logo-main" style="font-size:40px; margin-bottom: 24px;">HIT & BLOW</div>
+      <div class="logo-main" style="font-size:40px; margin-bottom:24px;">HIT & BLOW</div>
       <div class="card">
         <div class="card-title">ACCESS CODE</div>
         <div class="room-code">${h(roomCode)}</div>
-        <div style="text-align:center; font-size:12px; margin-bottom:12px; color:var(--primary);">
-          モード: <strong>${state.mode === 'coop' ? '🤝 協力モード' : state.mode === 'vs-speed' ? '🏁 早解き対戦' : '⚔️ 対戦モード'}</strong><br>
-          玉の数: <strong>${state.holeCount || 4}個</strong>
-          <br>色の数: <strong>${state.colorCount || 6}色</strong>
-        </div>
-        <p style="text-align:center;font-size:12px;color:var(--text-muted);margin-bottom:16px">対戦相手を待っています...</p>
-        <div style="height:1px;background:var(--border);margin:16px 0"></div>
-        ${state.players.map((p,i) => `
+        <p style="text-align:center;font-size:12px;color:var(--text-muted);margin-bottom:16px">
+          このIDを相手に教えてルームに招待しましょう
+        </p>
+        <div style="height:1px;background:var(--border);margin-bottom:16px"></div>
+
+        <!-- プレイヤー一覧 -->
+        ${state.players.map((p, i) => `
           <div class="player-row">
-            <div class="avatar">${i===0?'H':'C'}</div>
+            <div class="avatar">${p.isCpu ? '🤖' : (i===0?'H':'C')}</div>
             <span style="flex:1">${h(p.name)}</span>
-            ${i===myPlayerIndex?'<span style="font-size:11px;color:var(--primary)">あなた</span>':""}
+            ${i===myPlayerIndex ? '<span style="font-size:11px;color:var(--primary);">あなた</span>' : ""}
+            ${p.isCpu ? '<span style="font-size:11px;color:var(--text-muted);">CPU</span>' : ""}
           </div>
         `).join("")}
-        <div style="margin-top:20px">
+
+        <!-- CPU 追加 / 削除（ホストのみ） -->
+        ${isHost ? `
+          <div style="display:flex;gap:8px;margin-top:12px;">
+            <button class="btn btn-ghost" style="flex:1;font-size:12px;" onclick="window._addCpu()" ${!canAddCpu?'disabled':''}>🤖 CPU を追加</button>
+            <button class="btn btn-ghost" style="flex:1;font-size:12px;" onclick="window._removeCpu()" ${state.players.length <= 1 || !state.players[state.players.length - 1].isCpu ? 'disabled' : ''}>👋 CPU を削除</button>
+          </div>
+        ` : ""}
+
+        <!-- 設定セクション -->
+        ${settingsSection}
+
+        <!-- 開始ボタン -->
+        <div style="margin-top:20px;">
           ${isHost && canStart ? `<button class="btn btn-primary btn-full" onclick="window._startGame()">START DECRYPTION</button>` : ""}
-          ${!canStart ? `<p style="text-align:center;font-size:12px;color:var(--text-muted)"><span class="spinner"></span>相手の参加を待機中</p>` : ""}
-          ${canStart && !isHost ? `<p style="text-align:center;font-size:12px;color:var(--text-muted)"><span class="spinner"></span>ホストの開始操作を待っています</p>` : ""}
-          <button class="btn btn-ghost btn-full" style="margin-top:16px" onclick="if(confirm('ゲームを終了して一覧に戻りますか？')) location.href='../'">🚪 退出する</button>
+          ${!canStart ? `<p style="text-align:center;font-size:12px;color:var(--text-muted);"><span class="spinner"></span>${state.mode==='coop' ? 'プレイヤーの参加を待機中' : '対戦相手の参加を待機中（2人専用）'}</p>` : ""}
+          ${canStart && !isHost ? `<p style="text-align:center;font-size:12px;color:var(--text-muted);"><span class="spinner"></span>ホストの開始操作を待っています</p>` : ""}
+          <button class="btn btn-ghost btn-full" style="margin-top:12px;" onclick="if(confirm('ゲームを終了して一覧に戻りますか？')) location.href='../'">🚪 退出する</button>
         </div>
       </div>
       ${renderChatUI(state)}
@@ -592,53 +789,229 @@ function renderWaiting(state) {
   `);
 }
 
-window._startGame = function() {
-  if (currentState.mode === 'coop' || currentState.mode === 'vs-speed') {
-    const allColors = BALL_COLORS.slice(0, currentState.colorCount || 6).map(c => c.id);
-    const secret = [];
-    for(let i=0; i<(currentState.holeCount || 4); i++) {
-      const idx = Math.floor(Math.random() * allColors.length);
-      secret.push(allColors.splice(idx, 1)[0]);
-    }
-    update(ref(db, `games/hb/${roomCode}`), {
-      phase: "playing",
-      turn: 1,
-      systemSecret: secret,
-      activePlayerIndex: currentState.mode === 'coop' ? (Math.random() < 0.5 ? 0 : 1) : null,
-      history: false,
-      drafts: false
-    });
-  } else {
-    update(ref(db, `games/hb/${roomCode}`), { phase: "setting", drafts: false });
+// ホストがリアルタイムで設定を変更
+window._updateSetting = function(key, value) {
+  if (myPlayerIndex !== 0) return;
+  if (key === "mode" && value !== "coop" && currentState.players.length > 2) {
+    alert("対戦モードは2人専用です。CPUを削除するか、プレイヤーが退出する必要があります。");
+    return;
+  }
+  update(ref(db, `games/hb/${roomCode}`), { [key]: value });
+};
+
+// ============================================================
+// CPU 追加 / 削除
+// ============================================================
+window._addCpu = async function() {
+  if (myPlayerIndex !== 0) return;
+  const snap = await get(ref(db, `games/hb/${roomCode}`));
+  const state = snap.val();
+  const maxPlayers = state.mode === "coop" ? 4 : 2;
+  if (state.players.length >= maxPlayers) return;
+  state.players.push({ name: "CPU", isCpu: true });
+  await update(ref(db, `games/hb/${roomCode}`), { players: state.players });
+};
+
+window._removeCpu = async function() {
+  if (myPlayerIndex !== 0) return;
+  const snap = await get(ref(db, `games/hb/${roomCode}`));
+  const state = snap.val();
+  const lastIdx = state.players.length - 1;
+  if (lastIdx > 0 && state.players[lastIdx].isCpu) {
+    state.players.pop();
+    await update(ref(db, `games/hb/${roomCode}`), { players: state.players });
   }
 };
 
-window._addColor = function(id) {
-  const limit = currentState ? (currentState.holeCount || 4) : 4;
-  if (currentInput.length >= limit || currentInput.includes(id)) return;
-  currentInput.push(id);
-  if (roomCode && currentState?.phase === "playing" && currentState?.mode !== 'vs-speed') set(ref(db, `games/hb/${roomCode}/drafts/${myPlayerIndex}`), currentInput);
-  onRoomUpdate(currentState); // Re-render
-};
-window._clearColor = function() {
-  currentInput = [];
-  if (roomCode && currentState?.phase === "playing" && currentState?.mode !== 'vs-speed') set(ref(db, `games/hb/${roomCode}/drafts/${myPlayerIndex}`), null);
-  onRoomUpdate(currentState); // Re-render
-};
-window._submitSetting = function() {
-  const limit = currentState ? (currentState.holeCount || 4) : 4;
-  if (currentInput.length !== limit) return;
-  set(ref(db, `games/hb/${roomCode}/secretCodes/${myPlayerIndex}`), currentInput);
-};
-window._submitGuess = function() {
-  const limit = currentState ? (currentState.holeCount || 4) : 4;
-  if (currentInput.length !== limit) return;
-  set(ref(db, `games/hb/${roomCode}/guesses/${myPlayerIndex}`), currentInput);
+// ============================================================
+// ゲーム開始
+// ============================================================
+window._startGame = function() {
+  if (!currentState) return;
+  const { mode, colorCount, holeCount, players } = currentState;
+  if (mode === "coop" || mode === "vs-speed") {
+    const secret = generateRandomCode(colorCount || 6, holeCount || 4);
+    update(ref(db, `games/hb/${roomCode}`), {
+      phase: "playing", turn: 1, systemSecret: secret,
+      activePlayerIndex: mode === "coop" ? Math.floor(Math.random() * players.length) : null,
+      history: false, drafts: false, guesses: false, winner: -1
+    });
+  } else {
+    // vs モードはシークレット設定フェーズへ
+    update(ref(db, `games/hb/${roomCode}`), {
+      phase: "setting", drafts: false, secretCodes: false, winner: -1
+    });
+  }
 };
 
+// ============================================================
+// 色入力ユーティリティ（スパース配列 + カーソル方式）
+// ============================================================
+
+// カーソルを次の空きスロットへ進める
+function advanceCursor(holeCount) {
+  // 現在位置の次から空きを探す
+  for (let i = currentSlot + 1; i < holeCount; i++) {
+    if (currentInput[i] === undefined) { currentSlot = i; return; }
+  }
+  // 見つからなければ先頭から現在位置までを探す
+  for (let i = 0; i < currentSlot; i++) {
+    if (currentInput[i] === undefined) { currentSlot = i; return; }
+  }
+  // 全て埋まっている場合は末尾で止める
+  currentSlot = holeCount - 1;
+}
+
+// Firebase へドラフトを同期（undefined をフィルタして null にする）
+function syncDraft() {
+  if (!roomCode) return;
+  const phase = currentState?.phase;
+  const mode  = currentState?.mode;
+  if ((phase === "setting" || phase === "playing") && mode !== "vs-speed") {
+    // スパース配列をそのまま送ると undefined が消えるため null に変換して送る
+    const holeCount = currentState?.holeCount || 4;
+    const toSend = [...Array(holeCount)].map((_, i) =>
+      currentInput[i] !== undefined ? currentInput[i] : null
+    );
+    const hasAny = toSend.some(v => v !== null);
+    set(ref(db, `games/hb/${roomCode}/drafts/${myPlayerIndex}`), hasAny ? toSend : null);
+  }
+}
+
+// 入力が全スロット揃っているか
+function isInputFull(holeCount) {
+  for (let i = 0; i < holeCount; i++) {
+    if (currentInput[i] === undefined) return false;
+  }
+  return true;
+}
+
+// 使用中の色IDセット（color-btn の disabled 判定用）
+function usedColors() {
+  return currentInput.filter(v => v !== undefined);
+}
+
+// 送信用の密な配列（undefined を除いた全スロット確定済み配列）
+function toSubmitArray(holeCount) {
+  return [...Array(holeCount)].map((_, i) => currentInput[i]);
+}
+
+// ── カーソル位置へ色を配置
+window._addColor = function(id) {
+  const holeCount = currentState ? (currentState.holeCount || 4) : 4;
+  if (usedColors().includes(id)) return;        // 既に使用中
+  if (currentInput[currentSlot] !== undefined) return; // カーソル位置が埋まっている（念のため）
+  currentInput[currentSlot] = id;
+  advanceCursor(holeCount);
+  syncDraft();
+  onRoomUpdate(currentState);
+};
+
+// ── スロットをタップ → そのスロットを空にしてカーソルをそこへ
+window._removeAt = function(index) {
+  const holeCount = currentState ? (currentState.holeCount || 4) : 4;
+  if (index < 0 || index >= holeCount) return;
+  currentInput[index] = undefined;
+  currentSlot = index;
+  syncDraft();
+  onRoomUpdate(currentState);
+};
+
+// ── ← ボタン：カーソルを1つ前に戻してそのスロットを空にする
+window._removeLastColor = function() {
+  const holeCount = currentState ? (currentState.holeCount || 4) : 4;
+  // カーソル位置が埋まっているならそこを消す
+  if (currentInput[currentSlot] !== undefined) {
+    currentInput[currentSlot] = undefined;
+    syncDraft();
+    onRoomUpdate(currentState);
+    return;
+  }
+  // カーソルが空なら1つ前の埋まっているスロットを探す
+  for (let i = currentSlot - 1; i >= 0; i--) {
+    if (currentInput[i] !== undefined) {
+      currentInput[i] = undefined;
+      currentSlot = i;
+      syncDraft();
+      onRoomUpdate(currentState);
+      return;
+    }
+  }
+  // 後ろを探す
+  for (let i = holeCount - 1; i > currentSlot; i--) {
+    if (currentInput[i] !== undefined) {
+      currentInput[i] = undefined;
+      currentSlot = i;
+      syncDraft();
+      onRoomUpdate(currentState);
+      return;
+    }
+  }
+};
+
+// ── 全クリア
+window._clearColor = function() {
+  const holeCount = currentState ? (currentState.holeCount || 4) : 4;
+  if (usedColors().length === 0) return;
+  currentInput = [];
+  currentSlot  = 0;
+  syncDraft();
+  onRoomUpdate(currentState);
+};
+
+// ── 空スロットをクリック → カーソルをそこへ移動
+window._focusSlot = function(index) {
+  currentSlot = index;
+  onRoomUpdate(currentState);
+};
+
+window._submitSetting = function() {
+  const holeCount = currentState ? (currentState.holeCount || 4) : 4;
+  if (!isInputFull(holeCount)) return;
+  set(ref(db, `games/hb/${roomCode}/secretCodes/${myPlayerIndex}`), toSubmitArray(holeCount));
+};
+
+window._submitGuess = function() {
+  const holeCount = currentState ? (currentState.holeCount || 4) : 4;
+  if (!isInputFull(holeCount)) return;
+  set(ref(db, `games/hb/${roomCode}/guesses/${myPlayerIndex}`), toSubmitArray(holeCount));
+};
+
+// ============================================================
+// CPU の行動
+// ============================================================
+window._doCpuTurnHb = async function() {
+  const snap = await get(ref(db, `games/hb/${roomCode}`));
+  const state = snap.val();
+  if (!state) return;
+
+  if (state.phase === "setting" && !state.secretCodes?.[1]) {
+    const code = generateRandomCode(state.colorCount || 6, state.holeCount || 4);
+    update(ref(db, `games/hb/${roomCode}`), { "secretCodes/1": code });
+    return;
+  }
+
+  if (state.phase === "playing") {
+    const history = state.history || [];
+    const code = cpuGuess(state, history);
+    if (state.mode === "coop") {
+      if (state.players[state.activePlayerIndex]?.isCpu) {
+        update(ref(db, `games/hb/${roomCode}`), { [`guesses/${state.activePlayerIndex}`]: code });
+      }
+    } else {
+      if (!state.guesses?.[1]) {
+        update(ref(db, `games/hb/${roomCode}`), { "guesses/1": code });
+      }
+    }
+  }
+};
+
+// ============================================================
+// シークレット設定画面（対戦モードのみ）
+// ============================================================
 function renderSetting(state) {
-  const isReady = state.secretCodes && state.secretCodes[myPlayerIndex];
-  
+  const isReady = state.secretCodes?.[myPlayerIndex];
+  const holeCount = state.holeCount || 4;
   r(`
     <div class="screen">
       <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
@@ -647,35 +1020,39 @@ function renderSetting(state) {
           <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="if(confirm('ゲームを終了して一覧に戻りますか？')) location.href='../'">🚪 退出</button>
         </div>
       </div>
-      <div class="card">
-        <h2 style="text-align:center;margin-bottom:8px;font-family:'Jura',sans-serif;">SET YOUR SECRET CODE</h2>
-        <p style="font-size:12px;color:var(--text-muted);text-align:center;margin-bottom:24px;">
-          相手に解読させる${state.holeCount || 4}色の組み合わせを選んでください。<br>※同じ色は2回使えません
+      <div class="card" style="padding:20px;">
+        <h2 style="text-align:center;margin-bottom:6px;font-family:'Jura',sans-serif;">SET YOUR SECRET CODE</h2>
+        <p style="font-size:12px;color:var(--text-muted);text-align:center;margin-bottom:20px;">
+          相手に解読させる${holeCount}色の組み合わせを選んでください<br>
+          <span style="font-size:11px;">※同じ色は2回使えません　／　玉をタップすると個別に削除できます</span>
         </p>
-        
-        <div id="my-input-container" style="display:flex;justify-content:center;gap:16px;margin-bottom:32px;">
-          ${[...Array(state.holeCount || 4)].map((_, i) => {
-             const c = currentInput[i];
-             if (c !== undefined) return `<div class="ball" style="background:${BALL_COLORS[c].color}"></div>`;
-             else return `<div class="ball empty"></div>`;
-          }).join('')}
-        </div>
-        
         ${isReady ? `
-          <div style="text-align:center;color:var(--primary);font-weight:bold;margin-top:32px;">[OK] 準備完了</div>
+          <div id="my-input-container" style="display:flex;justify-content:center;gap:12px;margin-bottom:16px;">
+            ${renderSlotsHtml(holeCount, true)}
+          </div>
+          <div style="text-align:center;color:var(--primary);font-weight:bold;">[OK] 準備完了</div>
           <div style="text-align:center;font-size:12px;color:var(--text-muted);margin-top:8px;"><span class="spinner"></span>相手の設定を待っています...</div>
         ` : `
-          <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:24px;">
-            ${BALL_COLORS.slice(0, state.colorCount || 6).map(bc => `
-              <button id="color-btn-${bc.id}" class="color-btn" style="background:${bc.color}" 
-                ${currentInput.includes(bc.id) ? 'disabled' : ''} 
-                onclick="window._addColor(${bc.id})"></button>
-            `).join('')}
+          <!-- 入力スロット（タップで個別削除・空スロットタップでカーソル移動） -->
+          <div id="my-input-container" style="display:flex;justify-content:center;gap:12px;margin-bottom:20px;">
+            ${renderSlotsHtml(holeCount, false)}
           </div>
-          <div style="display:flex;gap:12px;">
-            <button class="btn btn-ghost" style="flex:1;" onclick="window._clearColor()">クリア</button>
-            <button id="submit-btn" class="btn btn-primary" style="flex:2;" 
-              ${currentInput.length === (state.holeCount || 4) ? '' : 'disabled'} 
+          <!-- カラーボタン -->
+          <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+            ${BALL_COLORS.slice(0, state.colorCount || 6).map(bc => `
+              <button id="color-btn-${bc.id}" class="color-btn" style="background:${bc.color}"
+                ${(usedColors().includes(bc.id) || currentInput[currentSlot] !== undefined) ? "disabled" : ""}
+                onclick="window._addColor(${bc.id})"></button>
+            `).join("")}
+          </div>
+          <!-- 操作ボタン行 -->
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-ghost" style="padding:10px 12px;font-size:18px;min-width:48px;"
+              title="1個戻す" onclick="window._removeLastColor()" ${usedColors().length===0?'disabled':''}>←</button>
+            <button class="btn btn-ghost" style="flex:1;font-size:12px;"
+              onclick="window._clearColor()" ${usedColors().length===0?'disabled':''}>全クリア</button>
+            <button id="submit-btn" class="btn btn-primary" style="flex:2;"
+              ${isInputFull(holeCount) ? "" : "disabled"}
               onclick="window._submitSetting()">決定</button>
           </div>
         `}
@@ -685,235 +1062,296 @@ function renderSetting(state) {
   `);
 }
 
+// ============================================================
+// ゲーム画面ルーター
+// ============================================================
 function renderGame(state) {
-  if (state.mode === 'coop') {
-    renderGameCoop(state);
-  } else {
-    renderGameVs(state);
-  }
+  state.mode === "coop" ? renderGameCoop(state) : renderGameVs(state);
 }
 
+// ──────────────────────────────────────────────────────────
+// 共通：使用色パレット（ゲーム開始時から常に表示）
+// ──────────────────────────────────────────────────────────
+function renderColorPalette(state) {
+  const colorCount = state.colorCount || 6;
+  return `
+    <div style="margin-bottom:12px;">
+      <div style="font-size:11px;color:var(--text-muted);text-align:center;letter-spacing:1px;margin-bottom:8px;">このゲームで使う色</div>
+      <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;">
+        ${BALL_COLORS.slice(0, colorCount).map(bc => `
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+            <div style="width:20px;height:20px;border-radius:50%;background:${bc.color};
+              box-shadow:inset -2px -2px 4px rgba(0,0,0,0.35),0 2px 4px rgba(0,0,0,0.4);"></div>
+          </div>
+        `).join("")}
+      </div>
+    </div>
+  `;
+}
+
+// ──────────────────────────────────────────────────────────
+// 共通：入力スロット HTML 生成（カーソル表示付き）
+// ──────────────────────────────────────────────────────────
+function renderSlotsHtml(holeCount, submitted) {
+  return [...Array(holeCount)].map((_, i) => {
+    const c = currentInput[i];
+    if (submitted) {
+      // 送信済み：薄く表示するだけ
+      return c !== undefined
+        ? `<div class="ball" style="background:${BALL_COLORS[c].color};opacity:0.55;"></div>`
+        : `<div class="ball empty"></div>`;
+    }
+    if (c !== undefined) {
+      // 色あり：タップで消去してカーソルをここへ
+      const isCursor = (i === currentSlot);
+      return `<div class="ball" style="background:${BALL_COLORS[c].color};cursor:pointer;
+        ${isCursor ? 'box-shadow:0 0 0 3px var(--primary),inset -4px -4px 8px rgba(0,0,0,0.4);' : ''}
+        " title="タップで削除" onclick="window._removeAt(${i})"></div>`;
+    }
+    // 空スロット
+    const isCursor = (i === currentSlot);
+    return `<div class="ball empty" style="cursor:pointer;
+      ${isCursor
+        ? 'border-color:var(--primary);border-style:solid;box-shadow:0 0 8px rgba(78,204,163,0.4);animation:cursor-pulse 1s ease-in-out infinite;'
+        : ''
+      }" onclick="window._focusSlot(${i})"></div>`;
+  }).join("");
+}
+
+// ──────────────────────────────────────────────────────────
+// 共通：入力スロット＋カラーボタン＋操作ボタン
+// ──────────────────────────────────────────────────────────
+function renderInputControls(state, onSubmit) {
+  const holeCount  = state.holeCount  || 4;
+  const colorCount = state.colorCount || 6;
+  const full = isInputFull(holeCount);
+  const hasAny = usedColors().length > 0;
+
+  return `
+    <div id="my-input-container" style="display:flex;justify-content:center;gap:12px;margin-bottom:20px;">
+      ${renderSlotsHtml(holeCount, false)}
+    </div>
+    <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+      ${BALL_COLORS.slice(0, colorCount).map(bc => `
+        <button id="color-btn-${bc.id}" class="color-btn" style="background:${bc.color}"
+          ${(usedColors().includes(bc.id) || currentInput[currentSlot] !== undefined) ? "disabled" : ""}
+          onclick="window._addColor(${bc.id})"></button>
+      `).join("")}
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-ghost" style="padding:10px 12px;font-size:18px;min-width:48px;"
+        title="1個戻す" onclick="window._removeLastColor()" ${!hasAny ? "disabled" : ""}>←</button>
+      <button class="btn btn-ghost" style="flex:1;font-size:12px;"
+        onclick="window._clearColor()" ${!hasAny ? "disabled" : ""}>全クリア</button>
+      <button id="submit-btn" class="btn btn-primary" style="flex:2;"
+        ${full ? "" : "disabled"} onclick="${onSubmit}">予想する</button>
+    </div>
+  `;
+}
+
+// ──────────────────────────────────────────────────────────
+// 対戦 / 早解き ゲーム画面
+// ──────────────────────────────────────────────────────────
 function renderGameVs(state) {
-  const isReady = state.guesses && state.guesses[myPlayerIndex];
-  const oppReady = state.guesses && state.guesses[1 - myPlayerIndex];
-  const history = state.history || [];
-  const oppDraft = state.drafts && state.drafts[1 - myPlayerIndex] ? state.drafts[1 - myPlayerIndex] : [];
-  
+  const isReady   = state.guesses?.[myPlayerIndex];
+  const oppReady  = state.guesses?.[1 - myPlayerIndex];
+  const history   = state.history || [];
+  const oppDraft  = state.drafts?.[1 - myPlayerIndex] || [];
+  const isSpeedMode = state.mode === "vs-speed";
+  const holeCount = state.holeCount || 4;
+  const oppName   = state.players[1 - myPlayerIndex]?.name || "相手";
+
   r(`
     <div class="screen">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-        <div style="font-family:'Jura',sans-serif;font-size:24px;font-weight:700;color:var(--primary);">TURN ${state.turn} <span style="font-size:14px;color:var(--text-muted)">/ 8</span></div>
+      <!-- ヘッダー -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div style="font-family:'Jura',sans-serif;font-size:24px;font-weight:700;color:var(--primary);">
+          TURN ${state.turn} <span style="font-size:14px;color:var(--text-muted);">/ 8</span>
+        </div>
         <div style="display:flex;gap:8px;">
           <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="window._showRulebook()">📖 RULE</button>
           <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="if(confirm('ゲームを終了して一覧に戻りますか？')) location.href='../'">🚪 退出</button>
         </div>
       </div>
-      
-      <!-- 履歴エリア -->
-      <div style="display:flex;gap:12px;margin-bottom:16px;">
-        <div class="history-box" style="flex:1; max-height:250px; overflow-y:auto;">
-          <div style="font-size:11px;color:var(--text-muted);text-align:center;letter-spacing:1px;">あなたの予想</div>
-          ${history.map(h => {
-            const g = myPlayerIndex === 0 ? h.p0_guess : h.p1_guess;
-            const hit = myPlayerIndex === 0 ? h.p0_hit : h.p1_hit;
-            const blow = myPlayerIndex === 0 ? h.p0_blow : h.p1_blow;
-            return `
-              <div class="history-row">
-                <div style="display:flex;gap:4px;">
-                  ${g.map(c => `<div class="ball-small" style="background:${BALL_COLORS[c].color}"></div>`).join('')}
-                </div>
-                <div class="hb-badge"><span class="hb-hit">${hit}H</span> <span class="hb-blow">${blow}B</span></div>
-              </div>
-            `;
-          }).join('')}
-          ${history.length === 0 ? `<div style="text-align:center;font-size:11px;color:var(--border);padding:10px 0;">NO DATA</div>` : ''}
+
+      <!-- 使用色パレット -->
+      ${renderColorPalette(state)}
+
+      <!-- 履歴 -->
+      <div style="display:flex;gap:12px;margin-bottom:12px;">
+        <div class="history-box" style="flex:1;max-height:200px;overflow-y:auto;scroll-behavior:smooth;">
+          <div style="font-size:11px;color:var(--text-muted);text-align:center;letter-spacing:1px;margin-bottom:4px;">あなたの予想</div>
+          ${history.map(entry => {
+            const g    = myPlayerIndex === 0 ? entry.p0_guess : entry.p1_guess;
+            const hit  = myPlayerIndex === 0 ? entry.p0_hit   : entry.p1_hit;
+            const blow = myPlayerIndex === 0 ? entry.p0_blow  : entry.p1_blow;
+            return `<div class="history-row">
+              <div style="display:flex;gap:4px;">${g.map(c=>`<div class="ball-small" style="background:${BALL_COLORS[c].color}"></div>`).join("")}</div>
+              <div class="hb-badge"><span class="hb-hit">${hit}H</span><span class="hb-blow">${blow}B</span></div>
+            </div>`;
+          }).join("") || `<div style="text-align:center;font-size:11px;color:var(--border);padding:10px 0;">NO DATA</div>`}
         </div>
-        
-        <div class="history-box" style="flex:1; opacity:0.8; max-height:250px; overflow-y:auto;">
-          <div style="font-size:11px;color:var(--text-muted);text-align:center;letter-spacing:1px;">相手の予想</div>
-          ${history.map(h => {
-            const g = myPlayerIndex === 0 ? h.p1_guess : h.p0_guess;
-            const hit = myPlayerIndex === 0 ? h.p1_hit : h.p0_hit;
-            const blow = myPlayerIndex === 0 ? h.p1_blow : h.p0_blow;
-            return `
-              <div class="history-row">
-                <div style="display:flex;gap:4px;">
-                  ${g ? g.map(c => `<div class="ball-small" style="background:${BALL_COLORS[c].color}"></div>`).join('') : [...Array(state.holeCount || 4)].map(()=>`<div class="ball-small empty"></div>`).join('')}
-                </div>
-                <div class="hb-badge"><span class="hb-hit">${hit}H</span> <span class="hb-blow">${blow}B</span></div>
-              </div>
-            `;
-          }).join('')}
-          ${history.length === 0 ? `<div style="text-align:center;font-size:11px;color:var(--border);padding:10px 0;">NO DATA</div>` : ''}
-        </div>
-      </div>
-      
-      <!-- 相手の思考状況 -->
-      <div class="card" style="padding: 12px; margin-bottom: 16px; ${state.mode === 'vs-speed' ? 'display: none;' : ''}">
-        <div style="font-size: 11px; color: var(--text-muted); text-align: center; margin-bottom: 8px;">相手の思考状況 (リアルタイム)</div>
-        <div id="opp-draft-container" style="display: flex; justify-content: center; gap: 12px;">
-          ${[...Array(state.holeCount || 4)].map((_, i) => {
-             if (oppReady) return `<div class="ball-small" style="background:var(--primary); border:none;"></div>`;
-             const c = oppDraft[i];
-             if (c !== undefined) return `<div class="ball-small" style="background:${BALL_COLORS[c].color}"></div>`;
-             else return `<div class="ball-small empty"></div>`;
-          }).join('')}
+        <div class="history-box" style="flex:1;opacity:0.8;max-height:200px;overflow-y:auto;scroll-behavior:smooth;">
+          <div style="font-size:11px;color:var(--text-muted);text-align:center;letter-spacing:1px;margin-bottom:4px;">相手の予想</div>
+          ${history.map(entry => {
+            const g    = myPlayerIndex === 0 ? entry.p1_guess : entry.p0_guess;
+            const hit  = myPlayerIndex === 0 ? entry.p1_hit   : entry.p0_hit;
+            const blow = myPlayerIndex === 0 ? entry.p1_blow  : entry.p0_blow;
+            return `<div class="history-row">
+              <div style="display:flex;gap:4px;">${g ? g.map(c=>`<div class="ball-small" style="background:${BALL_COLORS[c].color}"></div>`).join("") : [...Array(holeCount)].map(()=>`<div class="ball-small empty"></div>`).join("")}</div>
+              <div class="hb-badge"><span class="hb-hit">${hit}H</span><span class="hb-blow">${blow}B</span></div>
+            </div>`;
+          }).join("") || `<div style="text-align:center;font-size:11px;color:var(--border);padding:10px 0;">NO DATA</div>`}
         </div>
       </div>
 
-      <!-- 入力エリア -->
-      <div class="card">
-        <div id="my-input-container" style="display:flex;justify-content:center;gap:16px;margin-bottom:24px;">
-          ${[...Array(state.holeCount || 4)].map((_, i) => {
-             const c = currentInput[i];
-             if (c !== undefined) return `<div class="ball" style="background:${BALL_COLORS[c].color}"></div>`;
-             else return `<div class="ball empty"></div>`;
-          }).join('')}
+      <!-- 相手の思考状況（早解きは非表示） -->
+      ${!isSpeedMode ? `
+        <div class="card" style="padding:12px;margin-bottom:12px;">
+          <div style="font-size:11px;color:var(--text-muted);text-align:center;margin-bottom:10px;">
+            ${oppReady ? `✅ ${h(oppName)} が回答送信済み` : `⏳ ${h(oppName)} の思考中 (リアルタイム)`}
+          </div>
+          <div id="opp-draft-container" style="display:flex;justify-content:center;gap:12px;">
+            ${[...Array(holeCount)].map((_, i) => {
+              if (oppReady) return `<div class="ball" style="background:var(--primary);box-shadow:0 0 8px rgba(78,204,163,0.5);"></div>`;
+              const c = oppDraft[i];
+              return c !== undefined
+                ? `<div class="ball" style="background:${BALL_COLORS[c].color}"></div>`
+                : `<div class="ball empty"></div>`;
+            }).join("")}
+          </div>
         </div>
-        
+      ` : ""}
+
+      <!-- 入力エリア -->
+      <div class="card" style="padding:16px;">
         ${isReady ? `
           <div style="text-align:center;color:var(--primary);font-weight:bold;margin-bottom:8px;">[OK] 送信完了</div>
+          <div id="my-input-container" style="display:flex;justify-content:center;gap:12px;margin-bottom:12px;">
+            ${renderSlotsHtml(holeCount, true)}
+          </div>
           <div style="text-align:center;font-size:12px;color:var(--text-muted);">
             ${oppReady ? '<span class="spinner"></span>照合中...' : '<span class="spinner"></span>相手の入力を待っています...'}
           </div>
-        ` : `
-          <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
-            ${BALL_COLORS.slice(0, state.colorCount || 6).map(bc => `
-              <button id="color-btn-${bc.id}" class="color-btn" style="background:${bc.color}" 
-                ${currentInput.includes(bc.id) ? 'disabled' : ''} 
-                onclick="window._addColor(${bc.id})"></button>
-            `).join('')}
-          </div>
-          <div style="display:flex;gap:12px;">
-            <button class="btn btn-ghost" style="flex:1;" onclick="window._clearColor()">クリア</button>
-            <button id="submit-btn" class="btn btn-primary" style="flex:2;" 
-              ${currentInput.length === (state.holeCount || 4) ? '' : 'disabled'} 
-              onclick="window._submitGuess()">予想する</button>
-          </div>
-        `}
+        ` : renderInputControls(state, "window._submitGuess()")}
       </div>
-
       ${renderChatUI(state)}
     </div>
   `);
 }
 
+// ──────────────────────────────────────────────────────────
+// 協力ゲーム画面
+// ──────────────────────────────────────────────────────────
 function renderGameCoop(state) {
   const isActive = state.activePlayerIndex === myPlayerIndex;
-  const activePlayerName = state.players[state.activePlayerIndex].name;
-  const history = state.history || [];
-  const isReady = state.guesses && state.guesses[myPlayerIndex];
-  const activeDraft = state.drafts && state.drafts[state.activePlayerIndex] ? state.drafts[state.activePlayerIndex] : [];
-  
+  const activePlayerName = state.players[state.activePlayerIndex]?.name || "?";
+  const history   = state.history || [];
+  const isReady   = state.guesses?.[myPlayerIndex];
+  const activeDraft = state.drafts?.[state.activePlayerIndex] || [];
+  const holeCount = state.holeCount || 4;
+
   r(`
     <div class="screen">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-        <div style="font-family:'Jura',sans-serif;font-size:24px;font-weight:700;color:var(--primary);">TURN ${state.turn} <span style="font-size:14px;color:var(--text-muted)">/ 16</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <div style="font-family:'Jura',sans-serif;font-size:24px;font-weight:700;color:var(--primary);">
+          TURN ${state.turn} <span style="font-size:14px;color:var(--text-muted);">/ 16</span>
+        </div>
         <div style="display:flex;gap:8px;">
           <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="window._showRulebook()">📖 RULE</button>
           <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="if(confirm('ゲームを終了して一覧に戻りますか？')) location.href='../'">🚪 退出</button>
         </div>
       </div>
 
-      <div style="text-align:center; margin-bottom:16px; font-size:16px; font-weight:bold; color:${isActive ? 'var(--primary)' : 'var(--text)'};">
-        ${isActive ? 'あなたのターンです！' : `${h(activePlayerName)} のターンです...`}
+      <!-- 使用色パレット -->
+      ${renderColorPalette(state)}
+
+      <div style="text-align:center;margin-bottom:12px;font-size:15px;font-weight:bold;
+        color:${isActive?'var(--primary)':'var(--text)'};
+        padding:8px;border-radius:8px;
+        background:${isActive?'rgba(78,204,163,0.08)':'transparent'};
+        border:1px solid ${isActive?'rgba(78,204,163,0.3)':'transparent'};">
+        ${isActive ? "🎯 あなたのターンです！" : `⏳ ${h(activePlayerName)} のターンです...`}
       </div>
-      
-      <!-- 履歴エリア -->
-      <div class="history-box" style="margin-bottom:16px; max-height:250px; overflow-y:auto;">
-        ${history.map(h_item => `
+
+      <!-- 履歴 -->
+      <div class="history-box" style="margin-bottom:12px;max-height:200px;overflow-y:auto;scroll-behavior:smooth;">
+        ${history.map(entry => `
           <div class="history-row">
-            <div style="font-size:11px; color:var(--text-muted); width:30px;">T${h_item.turn}</div>
-            <div style="font-size:12px; width:70px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${h(state.players[h_item.playerIndex].name)}</div>
-            <div style="display:flex;gap:4px;">
-              ${h_item.guess.map(c => `<div class="ball-small" style="background:${BALL_COLORS[c].color}"></div>`).join('')}
-            </div>
-            <div class="hb-badge"><span class="hb-hit">${h_item.hit}H</span> <span class="hb-blow">${h_item.blow}B</span></div>
+            <div style="font-size:11px;color:var(--text-muted);width:30px;">T${entry.turn}</div>
+            <div style="font-size:12px;width:65px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${h(state.players[entry.playerIndex]?.name||"?")}</div>
+            <div style="display:flex;gap:4px;">${entry.guess.map(c=>`<div class="ball-small" style="background:${BALL_COLORS[c].color}"></div>`).join("")}</div>
+            <div class="hb-badge"><span class="hb-hit">${entry.hit}H</span><span class="hb-blow">${entry.blow}B</span></div>
           </div>
-        `).join('')}
-        ${history.length === 0 ? `<div style="text-align:center;font-size:11px;color:var(--border);padding:10px 0;">NO DATA</div>` : ''}
+        `).join("") || `<div style="text-align:center;font-size:11px;color:var(--border);padding:10px 0;">NO DATA</div>`}
       </div>
-      
+
       <!-- 入力エリア -->
-      <div class="card">
-        <div id="my-input-container" style="display:flex;justify-content:center;gap:16px;margin-bottom:24px;">
-          ${[...Array(state.holeCount || 4)].map((_, i) => {
-             const c = currentInput[i];
-             if (c !== undefined) return `<div class="ball" style="background:${BALL_COLORS[c].color}"></div>`;
-             else return `<div class="ball empty"></div>`;
-          }).join('')}
-        </div>
-        
+      <div class="card" style="padding:16px;">
         ${isActive ? (
           isReady ? `
             <div style="text-align:center;color:var(--primary);font-weight:bold;margin-bottom:8px;">[OK] 送信完了</div>
+            <div id="my-input-container" style="display:flex;justify-content:center;gap:12px;margin-bottom:12px;">
+              ${renderSlotsHtml(holeCount, true)}
+            </div>
             <div style="text-align:center;font-size:12px;color:var(--text-muted);"><span class="spinner"></span>判定中...</div>
-          ` : `
-            <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
-              ${BALL_COLORS.slice(0, state.colorCount || 6).map(bc => `
-                <button id="color-btn-${bc.id}" class="color-btn" style="background:${bc.color}" 
-                  ${currentInput.includes(bc.id) ? 'disabled' : ''} 
-                  onclick="window._addColor(${bc.id})"></button>
-              `).join('')}
-            </div>
-            <div style="display:flex;gap:12px;">
-              <button class="btn btn-ghost" style="flex:1;" onclick="window._clearColor()">クリア</button>
-              <button id="submit-btn" class="btn btn-primary" style="flex:2;" 
-                ${currentInput.length === (state.holeCount || 4) ? '' : 'disabled'} 
-                onclick="window._submitGuess()">予想する</button>
-            </div>
-          `
+          ` : renderInputControls(state, "window._submitGuess()")
         ) : `
-          <div style="text-align:center;font-size:12px;color:var(--text-muted); padding: 10px 0;">
+          <div style="text-align:center;font-size:12px;color:var(--text-muted);margin-bottom:12px;">
             <span class="spinner"></span>${h(activePlayerName)} が思考中...
           </div>
-          <div id="active-draft-container" style="display:flex;justify-content:center;gap:16px;margin-bottom:20px;">
-            ${[...Array(state.holeCount || 4)].map((_, i) => {
-               const c = activeDraft[i];
-               if (c !== undefined) return `<div class="ball" style="background:${BALL_COLORS[c].color}"></div>`;
-               else return `<div class="ball empty"></div>`;
-            }).join('')}
+          <!-- 相手のリアルタイムドラフトを大きいボールで表示 -->
+          <div id="active-draft-container" style="display:flex;justify-content:center;gap:12px;">
+            ${[...Array(holeCount)].map((_, i) => {
+              const c = activeDraft[i];
+              return c !== undefined
+                ? `<div class="ball" style="background:${BALL_COLORS[c].color}"></div>`
+                : `<div class="ball empty"></div>`;
+            }).join("")}
           </div>
         `}
       </div>
-
       ${renderChatUI(state)}
     </div>
   `);
 }
 
+// ============================================================
+// チャット UI
+// ============================================================
 function getChatLogHtml(state) {
-  if (!state) return '';
+  if (!state) return "";
   const msgsHtml = (state.chatMessages || []).map(m => {
     const isMe = m.senderIndex === myPlayerIndex;
-    return `<div style="text-align: ${isMe ? 'right' : 'left'};">
-      <div style="display: inline-block; text-align: left;">
-        <div style="font-size: 10px; color: var(--text-muted); margin-bottom: 2px; text-align: ${isMe ? 'right' : 'left'};">${h(state.players[m.senderIndex].name)}</div>
-        <div style="background: ${isMe ? 'var(--primary)' : 'var(--bg)'}; color: ${isMe ? '#121216' : 'var(--text)'}; border: 1px solid ${isMe ? 'var(--primary)' : 'var(--border)'}; padding: 6px 12px; border-radius: 12px; font-size: 12px; display: inline-block; max-width: 100%; word-break: break-all;">${h(m.text)}</div>
+    return `<div style="text-align:${isMe?'right':'left'};">
+      <div style="display:inline-block;text-align:left;">
+        <div style="font-size:10px;color:var(--text-muted);margin-bottom:2px;text-align:${isMe?'right':'left'};">${h(state.players[m.senderIndex]?.name||"?")}</div>
+        <div style="background:${isMe?'var(--primary)':'var(--bg)'};color:${isMe?'#121216':'var(--text)'};border:1px solid ${isMe?'var(--primary)':'var(--border)'};padding:6px 12px;border-radius:12px;font-size:12px;display:inline-block;max-width:100%;word-break:break-all;">${h(m.text)}</div>
       </div>
     </div>`;
-  }).join('');
-  return msgsHtml + (!(state.chatMessages && state.chatMessages.length > 0) ? '<div style="text-align:center; color:var(--text-muted); font-size:11px; margin-top: 40px;">メッセージはありません</div>' : '');
+  }).join("");
+  if (!msgsHtml) return `<div style="text-align:center;color:var(--text-muted);font-size:11px;margin-top:40px;">メッセージはありません</div>`;
+  return msgsHtml;
 }
 
 function renderChatUI(state) {
-  if (!state) return '';
-
+  if (!state) return "";
   return `
-    <div style="margin-top:16px; padding-top:16px; border-top:1px dashed var(--border);">
-      <div id="chatLogBox" style="height: 140px; overflow-y: auto; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px;">
+    <div style="margin-top:16px;padding-top:16px;border-top:1px dashed var(--border);">
+      <div id="chatLogBox" style="height:140px;overflow-y:auto;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:12px;display:flex;flex-direction:column;gap:8px;">
         ${getChatLogHtml(state)}
       </div>
-      <div style="display:flex; gap:8px; margin-bottom: 12px;">
-        <input type="text" id="chatInput" placeholder="メッセージを入力..." maxlength="30" onkeypress="if(event.key==='Enter') window._sendChat()" style="margin-bottom:0;">
-        <button class="btn btn-primary" style="padding: 0 16px; flex-shrink: 0;" onclick="window._sendChat()">送信</button>
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <input type="text" id="chatInput" placeholder="メッセージを入力..." maxlength="30"
+          onkeypress="if(event.key==='Enter') window._sendChat()" style="margin-bottom:0;">
+        <button class="btn btn-primary" style="padding:0 16px;flex-shrink:0;" onclick="window._sendChat()">送信</button>
       </div>
-      <div style="display:flex; justify-content:center; gap:8px; flex-wrap:wrap;">
-        <button class="btn btn-ghost" style="padding:8px 16px; font-size:16px; border-radius:24px;" onclick="window._sendStamp('👍 ナイス！')">👍</button>
-        <button class="btn btn-ghost" style="padding:8px 16px; font-size:16px; border-radius:24px;" onclick="window._sendStamp('🤔 うーん...')">🤔</button>
-        <button class="btn btn-ghost" style="padding:8px 16px; font-size:16px; border-radius:24px;" onclick="window._sendStamp('💡 わかった！')">💡</button>
-        <button class="btn btn-ghost" style="padding:8px 16px; font-size:16px; border-radius:24px;" onclick="window._sendStamp('🙏 おまかせ！')">🙏</button>
-        <button class="btn btn-ghost" style="padding:8px 16px; font-size:16px; border-radius:24px;" onclick="window._sendStamp('💦 ごめん！')">💦</button>
+      <div style="display:flex;justify-content:center;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-ghost" style="padding:8px 16px;font-size:16px;border-radius:24px;" onclick="window._sendStamp('👍 ナイス！')">👍</button>
+        <button class="btn btn-ghost" style="padding:8px 16px;font-size:16px;border-radius:24px;" onclick="window._sendStamp('🤔 うーん...')">🤔</button>
+        <button class="btn btn-ghost" style="padding:8px 16px;font-size:16px;border-radius:24px;" onclick="window._sendStamp('💡 わかった！')">💡</button>
+        <button class="btn btn-ghost" style="padding:8px 16px;font-size:16px;border-radius:24px;" onclick="window._sendStamp('🙏 おまかせ！')">🙏</button>
+        <button class="btn btn-ghost" style="padding:8px 16px;font-size:16px;border-radius:24px;" onclick="window._sendStamp('💦 ごめん！')">💦</button>
       </div>
     </div>
   `;
@@ -921,190 +1359,160 @@ function renderChatUI(state) {
 
 window._sendStamp = function(text) {
   if (!roomCode) return;
-  // トランザクション処理で同時書き込み時のデータ消失を防ぐ
-  runTransaction(ref(db, `games/hb/${roomCode}/chatMessages`), (messages) => {
-    const newMessages = messages || [];
-    newMessages.push({ senderIndex: myPlayerIndex, text: text, timestamp: Date.now() });
-    if (newMessages.length > 50) newMessages.shift();
-    return newMessages;
+  runTransaction(ref(db, `games/hb/${roomCode}/chatMessages`), messages => {
+    const list = messages || [];
+    list.push({ senderIndex: myPlayerIndex, text, timestamp: Date.now() });
+    if (list.length > 50) list.shift();
+    return list;
   });
 };
 
 window._sendChat = function() {
-  const input = document.getElementById('chatInput');
-  if (!input || !input.value.trim() || !roomCode) return;
-  
+  const input = document.getElementById("chatInput");
+  if (!input?.value.trim() || !roomCode) return;
   const text = input.value.trim();
-  input.value = ''; // UIを先にクリアして操作感を良くする
+  input.value = "";
   input.focus();
-
-  runTransaction(ref(db, `games/hb/${roomCode}/chatMessages`), (messages) => {
-    const newMessages = messages || [];
-    newMessages.push({ senderIndex: myPlayerIndex, text: text, timestamp: Date.now() });
-    if (newMessages.length > 50) newMessages.shift();
-    return newMessages;
+  runTransaction(ref(db, `games/hb/${roomCode}/chatMessages`), messages => {
+    const list = messages || [];
+    list.push({ senderIndex: myPlayerIndex, text, timestamp: Date.now() });
+    if (list.length > 50) list.shift();
+    return list;
   });
 };
 
+// ============================================================
+// 終了画面
+// ============================================================
 function renderEnded(state) {
-  if (state.mode === 'coop') {
-    let title = state.winner === 2 ? "MISSION CLEARED!" : "MISSION FAILED";
-    let tColor = state.winner === 2 ? "var(--primary)" : "var(--danger)";
-    
+  const holeCount = state.holeCount || 4;
+
+  // ── 協力モード ──
+  if (state.mode === "coop") {
+    const cleared = state.winner === 2;
+    const title  = cleared ? "MISSION CLEARED!" : "MISSION FAILED";
+    const tColor = cleared ? "var(--primary)" : "var(--danger)";
     r(`
       <div class="screen">
-        <div style="text-align:center;font-family:'Jura',sans-serif;font-size:40px;font-weight:700;color:${tColor};margin-bottom:4px;text-shadow:0 0 15px ${tColor}44">${title}</div>
-        <p style="text-align:center;color:var(--text-muted);margin-bottom:24px;font-family:'Jura',sans-serif;">TURN ${state.turn > 16 ? 16 : state.turn} END</p>
-        
+        <div style="text-align:center;font-family:'Jura',sans-serif;font-size:36px;font-weight:700;color:${tColor};margin-bottom:4px;text-shadow:0 0 15px ${tColor}44;">${title}</div>
+        <p style="text-align:center;color:var(--text-muted);margin-bottom:24px;font-family:'Jura',sans-serif;">
+          TURN ${Math.min(state.turn - 1, 16)} END
+        </p>
         <div class="card" style="text-align:center;">
           <div class="card-title">正解コード</div>
           <div style="display:flex;justify-content:center;gap:12px;margin-bottom:16px;">
-            ${state.systemSecret.map(c => `<div class="ball" style="background:${BALL_COLORS[c].color}"></div>`).join('')}
+            ${state.systemSecret.map(c => `<div class="ball" style="background:${BALL_COLORS[c].color}"></div>`).join("")}
           </div>
         </div>
-        
         ${renderChatUI(state)}
-
-        ${myPlayerIndex === 0 ? `
-          <button class="btn btn-primary btn-full" onclick="window._rematch()">もう一度遊ぶ</button>
-          <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="location.reload()">最初の画面に戻る</button>
-          <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="location.href='../'">🏠 ゲーム一覧に戻る</button>
-        ` : `
-          <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px; text-align:center;"><span class="spinner"></span>ホストの操作を待機中</p>
-          <button class="btn btn-ghost btn-full" onclick="location.reload()">最初の画面に戻る</button>
-          <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="location.href='../'">🏠 ゲーム一覧に戻る</button>
-        `}
+        ${renderRematchButtons(state)}
       </div>
     `);
     return;
   }
 
-  if (state.mode === 'vs-speed') {
+  // ── 早解き対戦 ──
+  if (state.mode === "vs-speed") {
     const oppIndex = 1 - myPlayerIndex;
-    let title = "DRAW"; let tColor = "var(--text)";
-    if (state.winner === myPlayerIndex) { title = "YOU WIN!"; tColor = "var(--primary)"; }
-    else if (state.winner === oppIndex) { title = "YOU LOSE"; tColor = "var(--danger)"; }
-    
+    let title = "DRAW", tColor = "var(--text)";
+    if (state.winner === myPlayerIndex)  { title = "YOU WIN!";  tColor = "var(--primary)"; }
+    else if (state.winner === oppIndex)  { title = "YOU LOSE";  tColor = "var(--danger)";  }
     r(`
       <div class="screen">
-        <div style="text-align:center;font-family:'Jura',sans-serif;font-size:48px;font-weight:700;color:${tColor};margin-bottom:4px;text-shadow:0 0 15px ${tColor}44">${title}</div>
-        <p style="text-align:center;color:var(--text-muted);margin-bottom:24px;font-family:'Jura',sans-serif;">TURN ${state.turn > 8 ? 8 : state.turn} END</p>
-        
+        <div style="text-align:center;font-family:'Jura',sans-serif;font-size:48px;font-weight:700;color:${tColor};margin-bottom:4px;text-shadow:0 0 15px ${tColor}44;">${title}</div>
+        <p style="text-align:center;color:var(--text-muted);margin-bottom:24px;font-family:'Jura',sans-serif;">
+          TURN ${Math.min(state.turn - 1, 8)} END
+        </p>
         <div class="card" style="text-align:center;">
           <div class="card-title">正解コード</div>
           <div style="display:flex;justify-content:center;gap:12px;margin-bottom:16px;">
-            ${state.systemSecret.map(c => `<div class="ball" style="background:${BALL_COLORS[c].color}"></div>`).join('')}
+            ${state.systemSecret.map(c => `<div class="ball" style="background:${BALL_COLORS[c].color}"></div>`).join("")}
           </div>
         </div>
-        
-        <!-- チャット＆スタンプエリア -->
-        <div style="margin-top:16px; padding-top:16px; border-top:1px dashed var(--border);">
-          <div id="chatLogBox" style="height: 140px; overflow-y: auto; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px;">
-            ${getChatLogHtml(state)}
-          </div>
-
-          <div style="display:flex; gap:8px; margin-bottom: 12px;">
-            <input type="text" id="chatInput" placeholder="メッセージを入力..." maxlength="30" onkeypress="if(event.key==='Enter') window._sendChat()" style="margin-bottom:0;">
-            <button class="btn btn-primary" style="padding: 0 16px; flex-shrink: 0;" onclick="window._sendChat()">送信</button>
-          </div>
-          <div style="display:flex; justify-content:center; gap:8px; flex-wrap:wrap;">
-            <button class="btn btn-ghost" style="padding:8px 16px; font-size:16px; border-radius:24px;" onclick="window._sendStamp('👍 ナイス！')">👍</button>
-            <button class="btn btn-ghost" style="padding:8px 16px; font-size:16px; border-radius:24px;" onclick="window._sendStamp('🤔 うーん...')">🤔</button>
-            <button class="btn btn-ghost" style="padding:8px 16px; font-size:16px; border-radius:24px;" onclick="window._sendStamp('💡 わかった！')">💡</button>
-            <button class="btn btn-ghost" style="padding:8px 16px; font-size:16px; border-radius:24px;" onclick="window._sendStamp('🙏 おまかせ！')">🙏</button>
-            <button class="btn btn-ghost" style="padding:8px 16px; font-size:16px; border-radius:24px;" onclick="window._sendStamp('💦 ごめん！')">💦</button>
-          </div>
-        </div>
-
-        ${myPlayerIndex === 0 ? `
-          <button class="btn btn-primary btn-full" onclick="window._rematch()">もう一度遊ぶ</button>
-          <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="location.reload()">最初の画面に戻る</button>
-          <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="location.href='../'">🏠 ゲーム一覧に戻る</button>
-        ` : `
-          <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px; text-align:center;"><span class="spinner"></span>ホストの操作を待機中</p>
-          <button class="btn btn-ghost btn-full" onclick="location.reload()">最初の画面に戻る</button>
-          <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="location.href='../'">🏠 ゲーム一覧に戻る</button>
-        `}
+        ${renderChatUI(state)}
+        ${renderRematchButtons(state)}
       </div>
     `);
     return;
   }
 
+  // ── 対戦モード ──
   const oppIndex = 1 - myPlayerIndex;
-  let title = "DRAW"; let tColor = "var(--text)";
-  if (state.winner === myPlayerIndex) { title = "YOU WIN!"; tColor = "var(--primary)"; }
-  else if (state.winner === oppIndex) { title = "YOU LOSE"; tColor = "var(--danger)"; }
-  
-  const mySecret = state.secretCodes[myPlayerIndex];
-  const oppSecret = state.secretCodes[oppIndex];
-  
+  let title = "DRAW", tColor = "var(--text)";
+  if (state.winner === myPlayerIndex)  { title = "YOU WIN!";  tColor = "var(--primary)"; }
+  else if (state.winner === oppIndex)  { title = "YOU LOSE";  tColor = "var(--danger)";  }
+  const mySecret  = state.secretCodes?.[myPlayerIndex] || [];
+  const oppSecret = state.secretCodes?.[oppIndex] || [];
   r(`
     <div class="screen">
-      <div style="text-align:center;font-family:'Jura',sans-serif;font-size:48px;font-weight:700;color:${tColor};margin-bottom:4px;text-shadow:0 0 15px ${tColor}44">${title}</div>
-      <p style="text-align:center;color:var(--text-muted);margin-bottom:24px;font-family:'Jura',sans-serif;">TURN ${state.turn > 8 ? 8 : state.turn} END</p>
-      
+      <div style="text-align:center;font-family:'Jura',sans-serif;font-size:48px;font-weight:700;color:${tColor};margin-bottom:4px;text-shadow:0 0 15px ${tColor}44;">${title}</div>
+      <p style="text-align:center;color:var(--text-muted);margin-bottom:24px;font-family:'Jura',sans-serif;">
+        TURN ${Math.min(state.turn, 8)} END
+      </p>
       <div class="card" style="text-align:center;">
-        <div class="card-title">相手の正解コード (解読対象)</div>
-        <div style="display:flex;justify-content:center;gap:12px;margin-bottom:32px;">
-          ${oppSecret ? oppSecret.map(c => `<div class="ball" style="background:${BALL_COLORS[c].color}"></div>`).join('') : ''}
+        <div class="card-title">相手の正解コード（解読対象）</div>
+        <div style="display:flex;justify-content:center;gap:12px;margin-bottom:24px;">
+          ${oppSecret.map(c => `<div class="ball" style="background:${BALL_COLORS[c].color}"></div>`).join("")}
         </div>
-        
         <div class="card-title">あなたの正解コード</div>
-        <div style="display:flex;justify-content:center;gap:12px;margin-bottom:16px;">
-          ${mySecret.map(c => `<div class="ball" style="background:${BALL_COLORS[c].color}"></div>`).join('')}
+        <div style="display:flex;justify-content:center;gap:12px;margin-bottom:8px;">
+          ${mySecret.map(c => `<div class="ball" style="background:${BALL_COLORS[c].color}"></div>`).join("")}
         </div>
       </div>
-      
       ${renderChatUI(state)}
-
-      ${myPlayerIndex === 0 ? `
-        <button class="btn btn-primary btn-full" onclick="window._rematch()">もう一度遊ぶ</button>
-        <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="location.reload()">最初の画面に戻る</button>
-        <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="location.href='../'">🏠 ゲーム一覧に戻る</button>
-      ` : `
-        <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px; text-align:center;"><span class="spinner"></span>ホストの操作を待機中</p>
-        <button class="btn btn-ghost btn-full" onclick="location.reload()">最初の画面に戻る</button>
-        <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="location.href='../'">🏠 ゲーム一覧に戻る</button>
-      `}
+      ${renderRematchButtons(state)}
     </div>
   `);
 }
 
+function renderRematchButtons(state) {
+  if (myPlayerIndex === 0) {
+    return `
+      <button class="btn btn-primary btn-full" style="margin-top:16px;" onclick="window._rematch()">もう一度遊ぶ</button>
+      <button class="btn btn-ghost btn-full" style="margin-top:8px;" onclick="location.reload()">最初の画面に戻る</button>
+      <button class="btn btn-ghost btn-full" style="margin-top:8px;border-color:transparent;" onclick="location.href='../'">🏠 ゲーム一覧に戻る</button>
+    `;
+  }
+  return `
+    <p style="font-size:12px;color:var(--text-muted);margin:16px 0 12px;text-align:center;"><span class="spinner"></span>ホストの操作を待機中</p>
+    <button class="btn btn-ghost btn-full" onclick="location.reload()">最初の画面に戻る</button>
+    <button class="btn btn-ghost btn-full" style="margin-top:8px;border-color:transparent;" onclick="location.href='../'">🏠 ゲーム一覧に戻る</button>
+  `;
+}
+
+// ============================================================
+// リマッチ
+// ============================================================
 window._rematch = function() {
-  if (myPlayerIndex !== 0) return;
-  if (currentState.mode === 'coop' || currentState.mode === 'vs-speed') {
-    const allColors = BALL_COLORS.slice(0, currentState.colorCount || 6).map(c => c.id);
-    const secret = [];
-    for(let i=0; i<(currentState.holeCount || 4); i++) {
-      const idx = Math.floor(Math.random() * allColors.length);
-      secret.push(allColors.splice(idx, 1)[0]);
-    }
+  if (myPlayerIndex !== 0 || !currentState) return;
+  const { mode, colorCount, holeCount, players } = currentState;
+  if (mode === "coop" || mode === "vs-speed") {
+    const secret = generateRandomCode(colorCount || 6, holeCount || 4);
     update(ref(db, `games/hb/${roomCode}`), {
-      phase: "playing",
-      turn: 1,
-      systemSecret: secret,
-      activePlayerIndex: currentState.mode === 'coop' ? (Math.random() < 0.5 ? 0 : 1) : null,
-      history: false,
-      winner: -1,
-      guesses: false,
-      drafts: false
+      phase: "playing", turn: 1, systemSecret: secret,
+      activePlayerIndex: mode === "coop" ? Math.floor(Math.random() * players.length) : null,
+      history: false, guesses: false, drafts: false, winner: -1
     });
   } else {
     update(ref(db, `games/hb/${roomCode}`), {
-      phase: "setting", secretCodes: false, guesses: false, drafts: false, history: false, turn: 1, winner: -1
+      phase: "setting", secretCodes: false, guesses: false,
+      drafts: false, history: false, turn: 1, winner: -1
     });
   }
 };
 
+// ============================================================
+// ルールブック
+// ============================================================
 window._showRulebook = function() {
-  const overlay = document.createElement('div');
-  overlay.className = 'rulebook-overlay';
-  overlay.onclick = (e) => { if(e.target===overlay) overlay.remove(); };
+  const overlay = document.createElement("div");
+  overlay.className = "rulebook-overlay";
+  overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
   overlay.innerHTML = `
     <div class="rulebook-content">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-        <span style="font-family:'Jura', sans-serif;font-size:24px;color:var(--primary);font-weight:700;">RULEBOOK</span>
-        <button class="btn btn-ghost" style="padding:4px 12px;font-size:13px" onclick="this.closest('.rulebook-overlay').remove()">✕ 閉じる</button>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <span style="font-family:'Jura',sans-serif;font-size:24px;color:var(--primary);font-weight:700;">RULEBOOK</span>
+        <button class="btn btn-ghost" style="padding:4px 12px;font-size:13px;" onclick="this.closest('.rulebook-overlay').remove()">✕ 閉じる</button>
       </div>
       <div class="rule-section">
         <h3>🎯 ゲームの目的</h3>
@@ -1112,7 +1520,7 @@ window._showRulebook = function() {
       </div>
       <div class="rule-section">
         <h3>💡 ヒットとブロー</h3>
-        <div class="rule-row"><span>毎ターン予想を送信すると、相手の正解と比較して以下のヒントが返ってきます。</span></div>
+        <div class="rule-row"><span>毎ターン予想を送信すると、正解と比較して以下のヒントが返ってきます。</span></div>
         <div class="rule-row"><span style="color:var(--primary);font-weight:bold;width:40px;flex-shrink:0;">Hit</span><span>「色」も「位置」も合っている数</span></div>
         <div class="rule-row"><span style="color:var(--text-muted);font-weight:bold;width:40px;flex-shrink:0;">Blow</span><span>「色」は合っているが「位置」が違う数</span></div>
       </div>
@@ -1126,13 +1534,22 @@ window._showRulebook = function() {
       </div>
       <div class="rule-section">
         <h3>🤝 協力モード</h3>
-        <div class="rule-row"><span>システムがランダムに決めた正解コードを、2人でターンを交互に交代しながら当てていきます（最大16ターン）。</span></div>
+      <div class="rule-row"><span>システムがランダムに決めた正解コードを、最大4人でターンを交代しながら当てていきます（最大16ターン）。ソロプレイ（1人）も可能です。</span></div>
       </div>
-      <button class="btn btn-primary btn-full" style="margin-top:16px" onclick="this.closest('.rulebook-overlay').remove()">閉じる</button>
+      <div class="rule-section">
+        <h3>🤖 CPUの強さ</h3>
+        <div class="rule-row"><span style="color:var(--text-muted);font-weight:bold;width:40px;flex-shrink:0;">弱い</span><span>毎ターン完全ランダムに予想します。</span></div>
+        <div class="rule-row"><span style="color:var(--text-muted);font-weight:bold;width:40px;flex-shrink:0;">普通</span><span>過去の結果から候補を絞り込み、ランダムに選択します。</span></div>
+        <div class="rule-row"><span style="color:var(--primary);font-weight:bold;width:40px;flex-shrink:0;">強い</span><span>過去の結果と矛盾しない候補を完全に絞り込みます。</span></div>
+      </div>
+      <button class="btn btn-primary btn-full" style="margin-top:16px;" onclick="this.closest('.rulebook-overlay').remove()">閉じる</button>
     </div>
   `;
   document.body.appendChild(overlay);
 };
+
+// 旧 _setCpuLevel（互換性のためスタブ）
+window._setCpuLevel = function() {};
 
 </script>
 </body>

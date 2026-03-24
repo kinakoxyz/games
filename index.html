@@ -193,6 +193,9 @@
    <button class="filter-btn" data-filter="cat-multi">
     👪 多人数対応
    </button>
+   <button class="filter-btn" data-filter="cpu">
+    🤖 CPU対戦あり
+   </button>
   </div>
   <div class="category fade-in" id="cat-2p">
    <h2 class="category-title">
@@ -213,7 +216,7 @@
       2人 / オンライン対戦
      </span>
     </a>
-    <a class="game-card" href="./18/">
+    <a class="game-card" data-cpu="true" href="./18/">
      <span class="game-icon">
       ✌️
      </span>
@@ -224,21 +227,7 @@
       合計18本の指で10回のじゃんけんを行う心理戦。計画的に指を消費し、勝利を目指す。
      </span>
      <span class="game-tag">
-      2人 / オンライン対戦
-     </span>
-    </a>
-    <a class="game-card" href="./hit-and-blow/">
-     <span class="game-icon">
-      🎯
-     </span>
-     <span class="game-title">
-      HIT &amp; BLOW
-     </span>
-     <span class="game-desc">
-      色の組み合わせを、論理的に推測して当てるオンライン推理ゲーム。
-     </span>
-     <span class="game-tag">
-      2人 / オンライン対戦
+      2人 / オンライン・CPU対戦
      </span>
     </a>
    </div>
@@ -248,6 +237,20 @@
     👪 多人数対応
    </h2>
    <div class="games">
+    <a class="game-card" data-cpu="true" href="./hit-and-blow/">
+     <span class="game-icon">
+      🎯
+     </span>
+     <span class="game-title">
+      HIT &amp; BLOW
+     </span>
+     <span class="game-desc">
+      色の組み合わせを、論理的に推測して当てるオンライン推理ゲーム。協力モードは最大4人で遊べます。
+     </span>
+     <span class="game-tag">
+      1〜4人 / オンライン・CPU対戦
+     </span>
+    </a>
     <a class="game-card" href="./reaction/">
      <span class="game-icon">
       ⚡
@@ -277,7 +280,28 @@
 
         categories.forEach(cat => {
           cat.classList.remove('fade-in');
-          if (filter === 'all' || cat.id === filter) {
+          let hasVisibleCards = false;
+
+          const cards = cat.querySelectorAll('.game-card');
+          cards.forEach(card => {
+            let show = false;
+            if (filter === 'all') {
+              show = true;
+            } else if (filter === 'cpu') {
+              if (card.dataset.cpu === 'true') show = true;
+            } else {
+              if (cat.id === filter) show = true;
+            }
+
+            if (show) {
+              card.style.display = 'flex';
+              hasVisibleCards = true;
+            } else {
+              card.style.display = 'none';
+            }
+          });
+
+          if (hasVisibleCards) {
             cat.style.display = 'block';
             void cat.offsetWidth; // リフローを強制してアニメーションを再実行
             cat.classList.add('fade-in');
