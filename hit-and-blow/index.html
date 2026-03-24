@@ -118,10 +118,10 @@
   
   .hb-badge {
     font-family: 'Jura', sans-serif; font-size: 14px; font-weight: 700;
-    display: flex; gap: 8px;
+    display: flex; gap: 4px; justify-content: flex-end; min-width: 52px;
   }
-  .hb-hit { color: var(--primary); }
-  .hb-blow { color: var(--text-muted); }
+  .hb-hit { color: var(--primary); width: 22px; text-align: right; }
+  .hb-blow { color: var(--text-muted); width: 22px; text-align: right; }
 
   .toast-container {
     position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
@@ -156,6 +156,18 @@
   }
   .toggle-btn.active { background: var(--primary); color: #121216; border-color: var(--primary); }
   .toggle-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  /* 共通ヘッダー */
+  .ghdr {
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 16px;background:linear-gradient(to bottom, var(--bg), transparent);
+    border-bottom:1px solid var(--border);z-index:20; min-height:50px;
+    margin: -20px -16px 14px -16px;
+  }
+  .ghdr-title { font-family:'Jura',sans-serif;font-size:1.2rem; color:var(--primary);letter-spacing:.1em; text-shadow:0 0 10px rgba(78,204,163,0.4); font-weight:700; }
+  .turn-ind { display:flex;align-items:center;gap:8px;font-size:.85rem;font-weight:700;color:var(--text); }
+  .tdot { width:8px;height:8px;border-radius:50%;background:var(--primary); box-shadow:0 0 10px var(--primary);animation:tp 1.2s ease-in-out infinite; }
+  @keyframes tp{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.5)}}
 </style>
 </head>
 <body>
@@ -220,6 +232,15 @@ let previousMainStateStr = "";
 
 // セットアップ画面のローカル選択値（ルーム作成前のみ使用）
 let setupName = "";
+
+// ============================================================
+// リザルト切替
+// ============================================================
+window._viewingBoard = false;
+window._toggleResultModal = function(show) {
+  window._viewingBoard = !show;
+  if (currentState) onRoomUpdate(currentState);
+};
 
 // ============================================================
 // Firebase 初期化
@@ -530,9 +551,10 @@ function onRoomUpdate(state) {
   };
   const currentMainStateStr = JSON.stringify(mainState);
   // フェーズ・ターン変化は差分に関わらず強制フルレンダー
-  const needsFullRender = phaseOrTurnChanged || (previousMainStateStr !== currentMainStateStr);
+  const needsFullRender = phaseOrTurnChanged || (previousMainStateStr !== currentMainStateStr) || window._forceRender;
 
   if (needsFullRender) {
+    window._forceRender = false;
     previousMainStateStr = currentMainStateStr;
 
     if (state.phase === "waiting")  { renderWaiting(state); }
@@ -544,7 +566,7 @@ function onRoomUpdate(state) {
       renderGame(state);
       scheduleCpuTurn(state);
     }
-    else if (state.phase === "ended") { renderEnded(state); }
+    else if (state.phase === "ended") { window._viewingBoard ? renderGame(state) : renderEnded(state); }
 
     setTimeout(() => {
       // チャットを最下部へ
@@ -1014,10 +1036,11 @@ function renderSetting(state) {
   const holeCount = state.holeCount || 4;
   r(`
     <div class="screen">
-      <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="window._showRulebook()">📖 RULE</button>
-          <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="if(confirm('ゲームを終了して一覧に戻りますか？')) location.href='../'">🚪 退出</button>
+      <div class="ghdr">
+        <span class="ghdr-title">HIT & BLOW</span>
+        <div class="turn-ind"><div class="tdot"></div><span>SETTING</span></div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;" onclick="window._showRulebook()">📖</button>
         </div>
       </div>
       <div class="card" style="padding:20px;">
@@ -1164,13 +1187,12 @@ function renderGameVs(state) {
   r(`
     <div class="screen">
       <!-- ヘッダー -->
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-        <div style="font-family:'Jura',sans-serif;font-size:24px;font-weight:700;color:var(--primary);">
-          TURN ${state.turn} <span style="font-size:14px;color:var(--text-muted);">/ 8</span>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="window._showRulebook()">📖 RULE</button>
-          <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="if(confirm('ゲームを終了して一覧に戻りますか？')) location.href='../'">🚪 退出</button>
+      <div class="ghdr">
+        <span class="ghdr-title">HIT & BLOW</span>
+        <div class="turn-ind"><div class="tdot"></div><span>TURN ${Math.min(state.turn, 8)} / 8</span></div>
+        <div style="display:flex; gap:8px;">
+          ${state.phase === 'ended' ? `<button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;color:var(--primary);border-color:var(--primary);" onclick="window._forceRender=true; window._toggleResultModal(true)">🏆 結果</button>` : ""}
+          <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;" onclick="window._showRulebook()">📖</button>
         </div>
       </div>
 
@@ -1225,7 +1247,8 @@ function renderGameVs(state) {
 
       <!-- 入力エリア -->
       <div class="card" style="padding:16px;">
-        ${isReady ? `
+        ${state.phase === "ended" ? `<div style="text-align:center;font-weight:bold;color:var(--primary);letter-spacing:1px;">GAME END</div>` :
+        (isReady ? `
           <div style="text-align:center;color:var(--primary);font-weight:bold;margin-bottom:8px;">[OK] 送信完了</div>
           <div id="my-input-container" style="display:flex;justify-content:center;gap:12px;margin-bottom:12px;">
             ${renderSlotsHtml(holeCount, true)}
@@ -1233,7 +1256,7 @@ function renderGameVs(state) {
           <div style="text-align:center;font-size:12px;color:var(--text-muted);">
             ${oppReady ? '<span class="spinner"></span>照合中...' : '<span class="spinner"></span>相手の入力を待っています...'}
           </div>
-        ` : renderInputControls(state, "window._submitGuess()")}
+        ` : renderInputControls(state, "window._submitGuess()"))}
       </div>
       ${renderChatUI(state)}
     </div>
@@ -1253,13 +1276,12 @@ function renderGameCoop(state) {
 
   r(`
     <div class="screen">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-        <div style="font-family:'Jura',sans-serif;font-size:24px;font-weight:700;color:var(--primary);">
-          TURN ${state.turn} <span style="font-size:14px;color:var(--text-muted);">/ 16</span>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="window._showRulebook()">📖 RULE</button>
-          <button class="btn btn-ghost" style="padding:4px 8px;font-size:11px;" onclick="if(confirm('ゲームを終了して一覧に戻りますか？')) location.href='../'">🚪 退出</button>
+      <div class="ghdr">
+        <span class="ghdr-title">HIT & BLOW</span>
+        <div class="turn-ind"><div class="tdot"></div><span>TURN ${Math.min(state.turn, 16)} / 16</span></div>
+        <div style="display:flex; gap:8px;">
+          ${state.phase === 'ended' ? `<button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;color:var(--primary);border-color:var(--primary);" onclick="window._forceRender=true; window._toggleResultModal(true)">🏆 結果</button>` : ""}
+          <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;" onclick="window._showRulebook()">📖</button>
         </div>
       </div>
 
@@ -1278,9 +1300,11 @@ function renderGameCoop(state) {
       <div class="history-box" style="margin-bottom:12px;max-height:200px;overflow-y:auto;scroll-behavior:smooth;">
         ${history.map(entry => `
           <div class="history-row">
-            <div style="font-size:11px;color:var(--text-muted);width:30px;">T${entry.turn}</div>
-            <div style="font-size:12px;width:65px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${h(state.players[entry.playerIndex]?.name||"?")}</div>
-            <div style="display:flex;gap:4px;">${entry.guess.map(c=>`<div class="ball-small" style="background:${BALL_COLORS[c].color}"></div>`).join("")}</div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="font-size:11px;color:var(--text-muted);width:24px;flex-shrink:0;">T${entry.turn}</div>
+              <div style="font-size:12px;width:56px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${h(state.players[entry.playerIndex]?.name||"?")}</div>
+              <div style="display:flex;gap:4px;">${entry.guess.map(c=>`<div class="ball-small" style="background:${BALL_COLORS[c].color}"></div>`).join("")}</div>
+            </div>
             <div class="hb-badge"><span class="hb-hit">${entry.hit}H</span><span class="hb-blow">${entry.blow}B</span></div>
           </div>
         `).join("") || `<div style="text-align:center;font-size:11px;color:var(--border);padding:10px 0;">NO DATA</div>`}
@@ -1288,7 +1312,8 @@ function renderGameCoop(state) {
 
       <!-- 入力エリア -->
       <div class="card" style="padding:16px;">
-        ${isActive ? (
+        ${state.phase === "ended" ? `<div style="text-align:center;font-weight:bold;color:var(--primary);letter-spacing:1px;">GAME END</div>` :
+        (isActive ? (
           isReady ? `
             <div style="text-align:center;color:var(--primary);font-weight:bold;margin-bottom:8px;">[OK] 送信完了</div>
             <div id="my-input-container" style="display:flex;justify-content:center;gap:12px;margin-bottom:12px;">
@@ -1309,7 +1334,7 @@ function renderGameCoop(state) {
                 : `<div class="ball empty"></div>`;
             }).join("")}
           </div>
-        `}
+        `)}
       </div>
       ${renderChatUI(state)}
     </div>
@@ -1469,12 +1494,14 @@ function renderRematchButtons(state) {
   if (myPlayerIndex === 0) {
     return `
       <button class="btn btn-primary btn-full" style="margin-top:16px;" onclick="window._rematch()">もう一度遊ぶ</button>
+      <button class="btn btn-ghost btn-full" style="margin-top:8px;" onclick="window._forceRender=true; window._toggleResultModal(false)">盤面を確認する</button>
       <button class="btn btn-ghost btn-full" style="margin-top:8px;" onclick="location.reload()">最初の画面に戻る</button>
       <button class="btn btn-ghost btn-full" style="margin-top:8px;border-color:transparent;" onclick="location.href='../'">🏠 ゲーム一覧に戻る</button>
     `;
   }
   return `
     <p style="font-size:12px;color:var(--text-muted);margin:16px 0 12px;text-align:center;"><span class="spinner"></span>ホストの操作を待機中</p>
+    <button class="btn btn-ghost btn-full" style="margin-bottom:8px;" onclick="window._forceRender=true; window._toggleResultModal(false)">盤面を確認する</button>
     <button class="btn btn-ghost btn-full" onclick="location.reload()">最初の画面に戻る</button>
     <button class="btn btn-ghost btn-full" style="margin-top:8px;border-color:transparent;" onclick="location.href='../'">🏠 ゲーム一覧に戻る</button>
   `;
