@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🍀 Clover Bouquet</title>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700&family=Caveat:wght@700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --green-dark: #2a502a;
+    --green-light: #6b9f6b;
+    --cream: #f0f4d8;
+    --brown: #5a3d24;
+    --bg: #e6ead5;
+    --surface: #fdfdf6;
+    --border: #dce0c4;
+    --text: #413c30;
+    --text-muted: #8a816d;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'M PLUS Rounded 1c', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    font-size: 14px;
+  }
+  h1, .logo { font-family: 'Caveat', cursive; }
+
+  #app { min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+  .screen { width: 100%; max-width: 500px; padding: 20px 16px 60px; }
+
+  .logo-main {
+    font-size: 48px;
+    color: var(--green-dark);
+    text-align: center;
+    margin-bottom: 4px;
+  }
+  .logo-sub { text-align: center; color: var(--text-muted); font-size: 13px; letter-spacing: 1px; margin-bottom: 32px; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 12px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+  }
+  .card-title { font-size: 13px; color: var(--text-muted); margin-bottom: 12px; font-weight: 700; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 12px 24px;
+    border: none; border-radius: 8px;
+    font-family: 'M PLUS Rounded 1c', sans-serif;
+    font-size: 14px; font-weight: 700;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: var(--green-light); color: white; }
+  .btn-primary:hover { background: var(--green-dark); }
+  .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+  .btn-ghost:hover { background: var(--bg); color: var(--text); }
+  .btn-full { width: 100%; margin-bottom: 8px; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  input[type=text] {
+    width: 100%; padding: 12px 14px;
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text);
+    font-family: 'M PLUS Rounded 1c', sans-serif; font-size: 14px;
+    outline: none; transition: border-color 0.15s;
+  }
+  input[type=text]:focus { border-color: var(--green-light); }
+  label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+
+  .room-code {
+    font-family: monospace;
+    font-size: 32px; letter-spacing: 8px;
+    color: var(--green-dark); text-align: center;
+    padding: 12px; background: var(--bg);
+    border-radius: 8px; margin-bottom: 8px;
+  }
+
+  .player-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .player-row:last-child { border-bottom: none; }
+  .avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700; flex-shrink: 0;
+    background: var(--green-light); color: white;
+  }
+
+  .spinner {
+    display: inline-block; width: 16px; height: 16px;
+    border: 2px solid rgba(0,0,0,0.1);
+    border-top-color: var(--green-light);
+    border-radius: 50%; animation: spin 0.8s linear infinite;
+    margin-right: 6px; vertical-align: middle;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @keyframes slideUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes glowFour {
+    0% { box-shadow: 0 0 0px rgba(42, 80, 42, 0); transform: translateY(0) scale(1); }
+    50% { box-shadow: 0 0 20px rgba(107, 159, 107, 0.8); border-color: var(--green-dark); transform: translateY(-4px) scale(1.05); }
+    100% { box-shadow: 0 0 0px rgba(42, 80, 42, 0); transform: translateY(0) scale(1); }
+  }
+  @keyframes popAlert {
+    0% { transform: scale(0.5); opacity: 0; }
+    70% { transform: scale(1.1); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .reveal-box .clover-card.is-4 {
+    animation: glowFour 1.5s infinite;
+  }
+  /* Game Specific Styles */
+  .game-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .round-badge { background: var(--green-dark); color: white; padding: 6px 16px; border-radius: 20px; font-weight: 700; font-size: 16px; }
+
+  .play-area { display: flex; flex-direction: column; gap: 16px; }
+  .player-board { border: 2px dashed var(--border); border-radius: var(--radius); padding: 16px; }
+  .player-board.me { border-style: solid; border-color: var(--green-light); background: #f7f7f0; }
+  .board-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .board-name { font-weight: 700; font-size: 15px; }
+  .board-score { font-size: 16px; font-weight: 700; color: var(--green-dark); }
+
+  .clover-card {
+    width: 60px; height: 84px;
+    border-radius: 8px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-size: 28px; font-weight: 700;
+    cursor: pointer;
+    border: 2px solid var(--border);
+    background: var(--surface);
+    transition: all 0.2s;
+    user-select: none; position: relative;
+    color: var(--text);
+  }
+  .clover-card.is-4 { color: var(--green-dark); font-weight: 900; }
+  .clover-card:hover { transform: translateY(-4px); border-color: var(--green-light); }
+  .clover-card.selected {
+    transform: translateY(-8px) scale(1.05);
+    border-color: var(--green-dark);
+    box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+  }
+  .clover-card.disabled { opacity: 0.6; cursor: not-allowed; }
+  .clover-card.disabled:hover { transform: none; }
+  .clover-card.face-down { background: linear-gradient(135deg, #89c389, #6b9f6b); color: transparent; }
+
+  .hand-cards { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  .field-cards { display: flex; gap: 8px; justify-content: center; align-items: center; min-height: 90px; }
+  .field-label { font-size: 11px; color: var(--text-muted); text-align: center; margin-bottom: 6px; }
+
+  .vs-separator { text-align: center; font-size: 24px; font-weight: 700; color: var(--text-muted); }
+
+  .reveal-box { text-align: center; }
+  .reveal-sum { font-size: 48px; font-weight: 700; color: var(--green-dark); }
+  .reveal-sum.is-4 { color: var(--green-light); }
+  .reveal-result { font-size: 20px; font-weight: 700; margin-top: 16px; padding: 8px; border-radius: 8px; }
+  .reveal-result.win { color: #2a502a; background: #d4edda; }
+  .reveal-result.lose { color: #721c24; background: #f8d7da; }
+  .reveal-result.draw { color: #383d41; background: #e2e3e5; }
+
+  .special-alert {
+    display: inline-block;
+    background: linear-gradient(135deg, var(--green-light), var(--green-dark));
+    color: white;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 700; font-size: 14px;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 15px rgba(42,80,42,0.4);
+    animation: popAlert 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  }
+  .special-alert.draw-alert { background: linear-gradient(135deg, #8a816d, #5a3d24); box-shadow: 0 4px 15px rgba(90,61,36,0.4); }
+
+  .toast-container {
+    position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+    z-index: 1000; display: flex; flex-direction: column; gap: 8px; pointer-events: none;
+  }
+  .toast {
+    background: rgba(65, 60, 48, 0.95); border: 1px solid var(--green-light);
+    color: white; padding: 12px 24px; border-radius: 24px;
+    font-weight: bold; font-size: 14px; text-align: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    animation: toast-in 0.3s ease-out, toast-out 0.3s ease-in 2.5s forwards;
+    white-space: nowrap;
+  }
+  @keyframes toast-in { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes toast-out { from { opacity: 1; transform: translateY(0); } to { opacity: 0; transform: translateY(-20px); } }
+
+  .rulebook-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.75); z-index:100; display:flex; align-items:flex-start; justify-content:center; overflow-y:auto; padding:16px; }
+  .rulebook-content { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); width:100%; max-width:500px; padding:24px; margin:auto; box-shadow: 0 4px 20px rgba(0,0,0,0.15); animation:slideUp 0.25s ease;}
+  .rule-section { margin-bottom:20px; }
+  .rule-section h3 { font-size:14px; color:var(--green-dark); border-bottom:1px dashed var(--green-light); padding-bottom:6px; margin-bottom:10px; font-weight:700; }
+  .rule-row { display:flex; gap:10px; margin-bottom:8px; font-size:13px; line-height:1.6; }
+
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<!-- Firebase SDK -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, set, get, onValue, update, off, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCW7voDrgpBC0AabZ_O3o1ZDKJ9fqnKa7k",
+  authDomain: "grimoire-eclipse.firebaseapp.com",
+  databaseURL: "https://grimoire-eclipse-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "grimoire-eclipse",
+  storageBucket: "grimoire-eclipse.firebasestorage.app",
+  messagingSenderId: "429385058377",
+  appId: "1:429385058377:web:aaa1f22471f2bc938fd798",
+  measurementId: "G-T35ZKBRW05"
+};
+
+let app_fb, db, auth;
+let roomRef = null, roomListener = null;
+let myPlayerIndex = -1;
+let myName = "";
+let roomCode = "";
+let currentState = null;
+let lastToastTime = 0;
+
+try {
+  app_fb = initializeApp(firebaseConfig);
+  db = getDatabase(app_fb);
+  auth = getAuth(app_fb);
+  signInAnonymously(auth).catch(e => console.error("Auth Error", e));
+} catch(e) { console.error("Firebase Init Error", e); }
+
+const el = document.getElementById("app");
+function r(html) { el.innerHTML = html; }
+function h(s) { return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function shuffle(a) { for (let i=a.length-1; i>0; i--) { const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function generateRoomCode() { return String(Math.floor(1000 + Math.random() * 9000)); }
+
+function listenRoom(code, cb) {
+  if(!db) return;
+  if(roomListener) off(ref(db, `games/clover/${roomCode}`));
+  roomRef = ref(db, `games/clover/${code}`);
+  roomListener = onValue(roomRef, snap => { if(snap.exists()) cb(snap.val()); });
+}
+
+function onRoomUpdate(state) {
+  if (!state) return;
+  
+  currentState = state;
+
+  const msgs = state.chatMessages || [];
+  if (msgs.length > 0) {
+    const lastMsg = msgs[msgs.length - 1];
+    if (lastMsg.timestamp > lastToastTime) {
+      lastToastTime = lastMsg.timestamp;
+      showToast(state.players[lastMsg.senderIndex].name, lastMsg.text);
+    }
+  }
+
+  // Firebaseはnullのみの配列や空の配列を削除して送信するため、デフォルト値で補完する
+  state.playedCards = [state.playedCards?.[0] ?? null, state.playedCards?.[1] ?? null];
+  state.drawnCards = [state.drawnCards?.[0] ?? null, state.drawnCards?.[1] ?? null];
+  state.hands = state.hands || [[], []];
+  state.scores = state.scores || [0, 0];
+  state.roundSums = state.roundSums || [0, 0];
+
+  // Host-driven logic to resolve the round
+  if (myPlayerIndex === 0 && state.phase === 'playing' && state.playedCards[0] !== null && state.playedCards[1] !== null) {
+    const { drawnCards, playedCards, hands } = state;
+    const allFour = [drawnCards[0], playedCards[0], drawnCards[1], playedCards[1]];
+    const fourCount = allFour.filter(c => c === 4).length;
+
+    const sum0 = drawnCards[0] + playedCards[0];
+    const sum1 = drawnCards[1] + playedCards[1];
+
+    let winner = -1; // -1 for draw
+    if (fourCount >= 2) {
+      winner = -1;
+    } else if (fourCount === 1) {
+      if (sum0 < sum1) winner = 0;
+      else if (sum1 < sum0) winner = 1;
+    } else { // fourCount === 0
+      if (sum0 > sum1) winner = 0;
+      else if (sum1 > sum0) winner = 1;
+    }
+
+    const scores = [...state.scores];
+    if (winner !== -1) scores[winner]++;
+
+    const history = state.history || [];
+    history.push({ round: state.round, drawnCards, playedCards, winner, sums: [sum0, sum1] });
+
+    // 手札から使用したカードを削除する
+    const newHands = [
+      hands[0].filter(c => c !== playedCards[0]),
+      hands[1].filter(c => c !== playedCards[1])
+    ];
+
+    update(ref(db, `games/clover/${roomCode}`), {
+      phase: 'reveal',
+      scores: scores,
+      hands: newHands,
+      history: history,
+      roundWinner: winner,
+      roundSums: [sum0, sum1]
+    });
+    return;
+  }
+
+  const stateCopy = { ...state };
+  delete stateCopy.chatMessages;
+  const currentMainStateStr = JSON.stringify(stateCopy);
+  const needsFullRender = (window._previousMainStateStr !== currentMainStateStr);
+
+  if (needsFullRender) {
+    if (state.phase === 'waiting') showWaiting(state);
+    else if (state.phase === 'playing') {
+      renderGame(state);
+      if (myPlayerIndex === 0 && state.players[1]?.isCpu && state.playedCards[1] === null) {
+        if (!window._cpuTimerClover) window._cpuTimerClover = setTimeout(() => { window._cpuTimerClover = null; window._doCpuTurnClover(); }, 1500);
+      } else {
+        if (window._cpuTimerClover) { clearTimeout(window._cpuTimerClover); window._cpuTimerClover = null; }
+      }
+    }
+    else if (state.phase === 'reveal') renderReveal(state);
+    else if (state.phase === 'ended') renderEnded(state);
+
+    window._previousMainStateStr = currentMainStateStr;
+    setTimeout(() => {
+      const logBox = document.getElementById('chatLogBox');
+      if (logBox) logBox.scrollTop = logBox.scrollHeight;
+    }, 0);
+  } else {
+    const logBox = document.getElementById('chatLogBox');
+    if (logBox) {
+      const isAtBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight <= 20;
+      logBox.innerHTML = getChatLogHtml(state);
+      if (isAtBottom) logBox.scrollTop = logBox.scrollHeight;
+    }
+  }
+}
+
+window._doCpuTurnClover = async function() {
+  const snap = await get(ref(db, `games/clover/${roomCode}`));
+  const state = snap.val();
+  if (!state || state.phase !== "playing" || state.playedCards[1] !== null) return;
+  
+  const hand = state.hands[1];
+  if (hand && hand.length > 0) {
+    const choice = hand[Math.floor(Math.random() * hand.length)];
+    update(ref(db, `games/clover/${roomCode}`), { 'playedCards/1': choice });
+  }
+};
+
+showSetup();
+
+function showSetup() {
+  r(`
+    <div class="screen">
+      <div class="logo-main">🍀 Clover Bouquet</div>
+      <div class="logo-sub">花冠をつくる、ちょっと意地悪なカードゲーム</div>
+      
+      <div class="card">
+        <div class="card-title">🆕 新しい部屋を作る</div>
+        <label>あなたの名前</label>
+        <input type="text" id="nameInput" placeholder="例: はなこ" value="${h(myName)}" maxlength="10" style="margin-bottom:16px">
+        <button class="btn btn-primary btn-full" onclick="window._createRoom()">部屋を作る</button>
+      </div>
+      
+      <div style="display:flex;align-items:center;gap:10px;font-size:12px;color:var(--text-muted);margin:16px 0;">
+        <div style="flex:1;height:1px;background:var(--border);"></div> または <div style="flex:1;height:1px;background:var(--border);"></div>
+      </div>
+      
+      <div class="card">
+        <div class="card-title">🚪 部屋に入る</div>
+        <label>あなたの名前</label>
+        <input type="text" id="joinNameInput" placeholder="例: はなこ" value="${h(myName)}" maxlength="10" style="margin-bottom:16px">
+        <label>部屋のコード（4桁）</label>
+        <input type="text" id="roomInput" placeholder="0000" maxlength="4" inputmode="numeric" style="margin-bottom:16px;letter-spacing:8px;text-align:center;font-family:monospace;font-size:24px;">
+        <button class="btn btn-ghost btn-full" onclick="window._joinRoom()">部屋に入る</button>
+      </div>
+
+      <button class="btn btn-ghost btn-full" onclick="window._showRulebook()">📖 ルールを確認する</button>
+      <button class="btn btn-ghost btn-full" style="margin-top:8px;border-color:transparent;" onclick="location.href='../'">🏠 ゲーム一覧に戻る</button>
+    </div>
+  `);
+}
+
+window._createRoom = async function() {
+  const name = document.getElementById("nameInput")?.value.trim();
+  if(!name) { alert("名前を入力してください"); return; }
+  myName = name; roomCode = generateRoomCode(); myPlayerIndex = 0;
+  const state = {
+    phase: "waiting",
+    players: [{name}],
+    round: 1,
+    scores: [0, 0],
+    hands: [[], []],
+    drawnCards: [null, null],
+    playedCards: [null, null],
+    history: []
+  };
+  await set(ref(db, `games/clover/${roomCode}`), state);
+  listenRoom(roomCode, onRoomUpdate);
+};
+
+window._joinRoom = async function() {
+  const name = (document.getElementById("joinNameInput")?.value || document.getElementById("nameInput")?.value).trim();
+  const code = (document.getElementById("roomInput")?.value||"").trim().toUpperCase();
+  if(!name) { alert("名前を入力してください"); return; }
+  if(code.length !== 4) { alert("正しい部屋コードを入力してください"); return; }
+  
+  const snap = await get(ref(db, `games/clover/${code}`));
+  if(!snap.exists()) { alert("部屋が見つかりません"); return; }
+  const state = snap.val();
+
+  if (state.players.length >= 2) { alert("この部屋は満員です"); return; }
+  if (state.phase !== 'waiting') { alert("このゲームはすでに始まっています"); return; }
+
+  myName = name; roomCode = code; myPlayerIndex = 1;
+  state.players.push({name});
+  await set(ref(db, `games/clover/${roomCode}`), state);
+  listenRoom(roomCode, onRoomUpdate);
+};
+
+function showWaiting(state) {
+  const isHost = myPlayerIndex === 0;
+  const canStart = state.players.length === 2;
+  r(`
+    <div class="screen">
+      <div class="logo-main">🍀 Clover Bouquet</div>
+      <div class="card">
+        <div class="card-title">部屋のコード</div>
+        <div class="room-code">${h(roomCode)}</div>
+        <p style="text-align:center;font-size:12px;color:var(--text-muted);margin-bottom:16px">対戦相手にコードを教えてあげましょう</p>
+        <div style="height:1px;background:var(--border);margin:16px 0"></div>
+        <div class="card-title">参加者 (${state.players.length} / 2人)</div>
+        ${state.players.map((p,i) => `
+          <div class="player-row">
+            <div class="avatar">${p.isCpu ? '🤖' : h(p.name[0])}</div>
+            <span style="flex:1">${h(p.name)}</span>
+            ${i===myPlayerIndex?'<span style="font-size:11px;color:var(--green-dark);font-weight:700">あなた</span>':""}
+            ${p.isCpu?'<span style="font-size:11px;color:var(--text-muted);font-weight:700">CPU</span>':""}
+          </div>
+        `).join("")}
+        <div style="margin-top:20px">
+          ${isHost ? `
+            <div style="display:flex; gap:8px; margin-bottom:12px;">
+              <button class="btn btn-ghost" style="flex:1;font-size:12px;" onclick="window._addCpu()" ${state.players.length>=2?'disabled':''}>🤖 CPU追加</button>
+              <button class="btn btn-ghost" style="flex:1;font-size:12px;" onclick="window._removeCpu()" ${!(state.players.length===2&&state.players[1].isCpu)?'disabled':''}>👋 CPU削除</button>
+            </div>
+          ` : ""}
+          ${isHost && canStart ? `<button class="btn btn-primary btn-full" onclick="window._startGame()">ゲーム開始</button>` : ""}
+          ${!canStart ? `<p style="text-align:center;font-size:12px;color:var(--text-muted)"><span class="spinner"></span>相手の参加を待っています...</p>` : ""}
+          ${canStart && !isHost ? `<p style="text-align:center;font-size:12px;color:var(--text-muted)"><span class="spinner"></span>ホストがゲームを開始するのを待っています</p>` : ""}
+          <button class="btn btn-ghost btn-full" style="margin-top:16px" onclick="if(confirm('本当に退室しますか？')) window._leaveRoom()">🚪 退室する</button>
+        </div>
+      </div>
+      ${renderChatUI(state)}
+    </div>
+  `);
+}
+
+window._addCpu = async function() {
+  if (myPlayerIndex !== 0) return;
+  const snap = await get(ref(db, `games/clover/${roomCode}`));
+  const state = snap.val();
+  if (state.players.length >= 2) return;
+  state.players.push({ name: "CPU", isCpu: true });
+  await set(ref(db, `games/clover/${roomCode}`), state);
+};
+
+window._removeCpu = async function() {
+  if (myPlayerIndex !== 0) return;
+  const snap = await get(ref(db, `games/clover/${roomCode}`));
+  const state = snap.val();
+  if (state.players.length === 2 && state.players[1].isCpu) {
+    state.players.pop();
+    await set(ref(db, `games/clover/${roomCode}`), state);
+  }
+};
+
+window._startGame = function() {
+  if (myPlayerIndex !== 0) return;
+  const hands = [
+    shuffle([0,1,2,3,4,5,6,7,8,9]),
+    shuffle([0,1,2,3,4,5,6,7,8,9])
+  ];
+  
+  const drawnForP0_idx = Math.floor(Math.random() * hands[1].length);
+  const drawnForP0 = hands[1].splice(drawnForP0_idx, 1)[0];
+
+  const drawnForP1_idx = Math.floor(Math.random() * hands[0].length);
+  const drawnForP1 = hands[0].splice(drawnForP1_idx, 1)[0];
+
+  update(ref(db, `games/clover/${roomCode}`), {
+    phase: "playing",
+    hands: hands,
+    drawnCards: [drawnForP0, drawnForP1],
+    playedCards: [null, null],
+    scores: [0,0],
+    round: 1,
+    history: []
+  });
+};
+
+function renderCard(num, isSelected, isDisabled, onClick) {
+    return `<div class="clover-card ${num === 4 ? 'is-4' : ''} ${isSelected ? 'selected' : ''} ${isDisabled ? 'disabled' : ''}" onclick="${isDisabled ? '' : onClick}">
+        ${num}
+    </div>`;
+}
+
+function renderGame(state) {
+  const oppIndex = 1 - myPlayerIndex;
+  const myHand = state.hands[myPlayerIndex];
+  const myDrawnCard = state.drawnCards[myPlayerIndex];
+  const cardDrawnFromMe = state.drawnCards[oppIndex];
+  const myPlayedCard = state.playedCards[myPlayerIndex];
+  const oppPlayedCard = state.playedCards[oppIndex];
+
+  r(`
+    <div class="screen">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 16px;">
+        <div class="game-header" style="margin-bottom: 0;">
+          <div class="round-badge">第 ${state.round} 回戦</div>
+          <div style="text-align:right; margin-left:12px;">
+            <div>${h(state.players[0].name)}: <strong>${state.scores[0]}</strong>勝</div>
+            <div>${h(state.players[1].name)}: <strong>${state.scores[1]}</strong>勝</div>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-ghost" style="padding:6px 12px; font-size:11px;" onclick="window._showRulebook()">📖 ルール</button>
+          <button class="btn btn-ghost" style="padding:6px 12px; font-size:11px;" onclick="if(confirm('本当に退室しますか？')) window._leaveRoom()">🚪 退室</button>
+        </div>
+      </div>
+
+      <div class="play-area">
+        <!-- Opponent's Board -->
+        <div class="player-board">
+          <div class="board-header">
+            <div class="board-name">${h(state.players[oppIndex].name)}</div>
+          </div>
+          <div class="field-cards">
+            ${oppPlayedCard !== null
+              ? `<span style="color:var(--green-dark);font-weight:700;">準備完了</span>`
+              : `<span style="color:var(--text-muted);"><span class="spinner"></span>考え中...</span>`
+            }
+          </div>
+        </div>
+
+        <div class="vs-separator">- vs -</div>
+
+        <!-- My Board -->
+        <div class="player-board me">
+          <div class="board-header">
+            <div class="board-name">${h(state.players[myPlayerIndex].name)} (あなた)</div>
+          </div>
+          
+          <div style="display: flex; justify-content: space-around; text-align: center; margin-bottom: 16px;">
+            <div>
+              <div class="field-label">相手から引いたカード</div>
+              <div class="field-cards" style="min-height: initial;">
+                ${renderCard(myDrawnCard, false, true, '')}
+              </div>
+            </div>
+            <div>
+              <div class="field-label">相手に引かれたカード</div>
+              <div class="field-cards" style="min-height: initial;">
+                ${renderCard(cardDrawnFromMe, false, true, '')}
+              </div>
+            </div>
+          </div>
+
+          <div class="field-label">自分の手札から1枚選ぶ</div>
+          <div class="hand-cards">
+            ${myHand.map(card => renderCard(
+              card,
+              card === myPlayedCard,
+              myPlayedCard !== null,
+              `window._playCard(${card})`
+            )).join('')}
+          </div>
+        </div>
+      </div>
+      ${renderChatUI(state)}
+    </div>
+  `);
+}
+
+window._playCard = function(card) {
+  const key = myPlayerIndex === 0 ? 'playedCards/0' : 'playedCards/1';
+  const updates = {};
+  updates[key] = card;
+  update(ref(db, `games/clover/${roomCode}`), updates);
+}
+
+function renderReveal(state) {
+  const oppIndex = 1 - myPlayerIndex;
+  const myDrawn = state.drawnCards[myPlayerIndex];
+  const myPlayed = state.playedCards[myPlayerIndex];
+  const mySum = state.roundSums[myPlayerIndex];
+  const oppDrawn = state.drawnCards[oppIndex];
+  const oppPlayed = state.playedCards[oppIndex];
+  const oppSum = state.roundSums[oppIndex];
+
+  const allFour = [myDrawn, myPlayed, oppDrawn, oppPlayed];
+  const fourCount = allFour.filter(c => c === 4).length;
+
+  let resultText = '';
+  let resultClass = '';
+  if (state.roundWinner === -1) {
+    resultText = '引き分け';
+    resultClass = 'draw';
+  } else if (state.roundWinner === myPlayerIndex) {
+    resultText = 'あなたの勝ち！';
+    resultClass = 'win';
+  } else {
+    resultText = 'あなたの負け';
+    resultClass = 'lose';
+  }
+
+  r(`
+    <div class="screen">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 16px;">
+        <div class="game-header" style="margin-bottom: 0;">
+          <div class="round-badge">第 ${state.round} 回戦 結果</div>
+          <div style="text-align:right; margin-left:12px;">
+            <div>${h(state.players[0].name)}: <strong>${state.scores[0]}</strong>勝</div>
+            <div>${h(state.players[1].name)}: <strong>${state.scores[1]}</strong>勝</div>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-ghost" style="padding:6px 12px; font-size:11px;" onclick="window._showRulebook()">📖 ルール</button>
+          <button class="btn btn-ghost" style="padding:6px 12px; font-size:11px;" onclick="if(confirm('本当に退室しますか？')) window._leaveRoom()">🚪 退室</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex; justify-content:space-around; align-items:flex-start; text-align:center;">
+          <!-- My side -->
+          <div class="reveal-box">
+            <div class="card-title" style="text-align:center">${h(state.players[myPlayerIndex].name)}</div>
+            <div class="field-cards">
+              ${renderCard(myDrawn, false, true, '')}
+              <span style="font-size:24px; margin: 0 8px;">+</span>
+              ${renderCard(myPlayed, false, true, '')}
+            </div>
+            <div class="reveal-sum ${fourCount === 1 ? 'is-4' : ''}">${mySum}</div>
+          </div>
+          <!-- Opponent's side -->
+          <div class="reveal-box">
+            <div class="card-title" style="text-align:center">${h(state.players[oppIndex].name)}</div>
+            <div class="field-cards">
+              ${renderCard(oppDrawn, false, true, '')}
+              <span style="font-size:24px; margin: 0 8px;">+</span>
+              ${renderCard(oppPlayed, false, true, '')}
+            </div>
+            <div class="reveal-sum ${fourCount === 1 ? 'is-4' : ''}">${oppSum}</div>
+          </div>
+        </div>
+
+        <div style="height:1px; background:var(--border); margin: 20px 0;"></div>
+
+        <div style="text-align:center">
+          ${fourCount === 1 ? `<div class="special-alert">✨「4」発動！合計が小さい方の勝ち！✨</div>` : ''}
+          ${fourCount >= 2 ? `<div class="special-alert draw-alert">⚠️「4」が複数枚！強制引き分け！⚠️</div>` : ''}
+          <div class="reveal-result ${resultClass}">${resultText}</div>
+        </div>
+
+        <div style="margin-top: 24px;">
+          ${myPlayerIndex === 0 
+            ? `<button class="btn btn-primary btn-full" onclick="window._nextRound()">次のラウンドへ</button>`
+            : `<p style="text-align:center;font-size:12px;color:var(--text-muted)"><span class="spinner"></span>ホストが次へ進めるのを待っています</p>`
+          }
+        </div>
+      </div>
+      ${renderChatUI(state)}
+    </div>
+  `);
+}
+
+window._nextRound = async function() {
+  if (myPlayerIndex !== 0) return;
+  
+  const snap = await get(ref(db, `games/clover/${roomCode}`));
+  const state = snap.val();
+
+  const winnerBy3 = state.scores.some(s => s >= 3);
+  const isLastRound = state.round >= 5;
+
+  if (winnerBy3 || isLastRound) {
+    update(ref(db, `games/clover/${roomCode}`), { phase: 'ended' });
+  } else {
+    const hands = state.hands;
+    const drawnForP0_idx = Math.floor(Math.random() * hands[1].length);
+    const drawnForP0 = hands[1].splice(drawnForP0_idx, 1)[0];
+
+    const drawnForP1_idx = Math.floor(Math.random() * hands[0].length);
+    const drawnForP1 = hands[0].splice(drawnForP1_idx, 1)[0];
+
+    update(ref(db, `games/clover/${roomCode}`), {
+      phase: "playing",
+      round: state.round + 1,
+      hands: hands,
+      drawnCards: [drawnForP0, drawnForP1],
+      playedCards: [null, null],
+      roundWinner: null,
+      roundSums: null
+    });
+  }
+}
+
+function renderEnded(state) {
+  let winner = -1;
+  if (state.scores[0] > state.scores[1]) winner = 0;
+  else if (state.scores[1] > state.scores[0]) winner = 1;
+
+  let resultText = '';
+  if (winner === -1) {
+    resultText = '引き分け！';
+  } else {
+    resultText = `${h(state.players[winner].name)} の勝利！`;
+  }
+
+  r(`
+    <div class="screen">
+      <div class="logo-main">🍀 Game Over</div>
+      <div class="card" style="text-align:center;">
+        <h2 style="font-size:24px; color:var(--green-dark); margin-bottom:16px;">${resultText}</h2>
+        <p style="font-size: 18px; margin-bottom: 24px;">
+          ${h(state.players[0].name)}: <strong>${state.scores[0]}</strong> - <strong>${state.scores[1]}</strong> :${h(state.players[1].name)}
+        </p>
+
+        <div style="text-align: left; background: var(--bg); padding: 12px; border-radius: 8px; margin-bottom: 24px; max-height: 250px; overflow-y: auto;">
+          <h3 style="font-size: 14px; margin-bottom: 8px; color: var(--text-muted); text-align: center;">対戦履歴</h3>
+          ${state.history ? state.history.map(hist => {
+             const p0Win = hist.winner === 0 ? '👑 ' : '';
+             const p1Win = hist.winner === 1 ? ' 👑' : '';
+             const draw = hist.winner === -1 ? '<span style="color:var(--text-muted); font-size:11px; margin-left:4px;">(引き分け)</span>' : '';
+             return `
+               <div style="border-bottom: 1px dashed var(--border); padding: 8px 0; font-size: 12px;">
+                 <div style="font-weight: bold; margin-bottom: 6px;">第${hist.round}回戦${draw}</div>
+                 <div style="display: flex; justify-content: space-between;">
+                   <div style="${hist.winner === 0 ? 'font-weight:bold;color:var(--green-dark);' : ''}">${p0Win}${h(state.players[0].name)}: ${hist.sums[0]} <span style="font-size:10px;color:var(--text-muted)">(${hist.drawnCards[0]}+${hist.playedCards[0]})</span></div>
+                   <div style="${hist.winner === 1 ? 'font-weight:bold;color:var(--green-dark);' : ''}">${h(state.players[1].name)}: ${hist.sums[1]} <span style="font-size:10px;color:var(--text-muted)">(${hist.drawnCards[1]}+${hist.playedCards[1]})</span>${p1Win}</div>
+                 </div>
+               </div>
+             `;
+          }).join('') : '<p style="text-align:center;font-size:12px;">履歴がありません</p>'}
+        </div>
+
+        ${myPlayerIndex === 0 ? `
+          <button class="btn btn-primary btn-full" onclick="window._startGame()">もう一度遊ぶ</button>
+          <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="location.reload()">最初の画面に戻る</button>
+          <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="location.href='../'">🏠 ゲーム一覧に戻る</button>
+        ` : `
+          <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px"><span class="spinner"></span>ホストの操作を待っています...</p>
+          <button class="btn btn-ghost btn-full" onclick="location.reload()">最初の画面に戻る</button>
+          <button class="btn btn-ghost btn-full" style="margin-top:8px" onclick="location.href='../'">🏠 ゲーム一覧に戻る</button>
+        `}
+      </div>
+      ${renderChatUI(state)}
+    </div>
+  `);
+}
+
+function showToast(name, text) {
+  let container = document.getElementById('toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    container.className = 'toast-container';
+    document.body.appendChild(container);
+  }
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.innerHTML = `<span style="color:var(--green-light);margin-right:8px;">${h(name)}:</span>${h(text)}`;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
+
+function getChatLogHtml(state) {
+  if (!state) return '';
+  return (state.chatMessages || []).map(m => {
+    const isMe = m.senderIndex === myPlayerIndex;
+    return `<div style="text-align: ${isMe ? 'right' : 'left'};">
+      <div style="display: inline-block; text-align: left;">
+        <div style="font-size: 10px; color: var(--text-muted); margin-bottom: 2px; text-align: ${isMe ? 'right' : 'left'};">${h(state.players[m.senderIndex].name)}</div>
+        <div style="background: ${isMe ? 'var(--green-light)' : 'var(--surface)'}; color: ${isMe ? 'white' : 'var(--text)'}; border: 1px solid ${isMe ? 'var(--green-light)' : 'var(--border)'}; padding: 6px 12px; border-radius: 12px; font-size: 12px; display: inline-block; max-width: 100%; word-break: break-all;">${h(m.text)}</div>
+      </div>
+    </div>`;
+  }).join('') + (!(state.chatMessages && state.chatMessages.length > 0) ? '<div style="text-align:center; color:var(--text-muted); font-size:11px; margin-top: 40px;">メッセージはありません</div>' : '');
+}
+
+function renderChatUI(state) {
+  if (!state) return '';
+  return `
+    <div style="margin-top:24px; padding-top:16px; border-top:1px dashed var(--border); text-align: left;">
+      <div id="chatLogBox" style="height: 140px; overflow-y: auto; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px;">
+        ${getChatLogHtml(state)}
+      </div>
+
+      <div style="display:flex; gap:8px; margin-bottom: 12px;">
+        <input type="text" id="chatInput" placeholder="メッセージを入力..." maxlength="30" onkeypress="if(event.key==='Enter') window._sendChat()" style="margin-bottom:0;">
+        <button class="btn btn-primary" style="padding: 0 16px; flex-shrink: 0;" onclick="window._sendChat()">送信</button>
+      </div>
+      <div style="display:flex; justify-content:center; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-ghost" style="padding:8px 16px; font-size:16px; border-radius:24px;" onclick="window._sendStamp('👍 ナイス！')">👍</button>
+        <button class="btn btn-ghost" style="padding:8px 16px; font-size:16px; border-radius:24px;" onclick="window._sendStamp('🤔 うーん...')">🤔</button>
+        <button class="btn btn-ghost" style="padding:8px 16px; font-size:16px; border-radius:24px;" onclick="window._sendStamp('💡 わかった！')">💡</button>
+        <button class="btn btn-ghost" style="padding:8px 16px; font-size:16px; border-radius:24px;" onclick="window._sendStamp('🙏 おまかせ！')">🙏</button>
+        <button class="btn btn-ghost" style="padding:8px 16px; font-size:16px; border-radius:24px;" onclick="window._sendStamp('💦 ごめん！')">💦</button>
+      </div>
+    </div>
+  `;
+}
+
+window._sendStamp = function(text) {
+  if (!roomCode || !currentState) return;
+  runTransaction(ref(db, `games/clover/${roomCode}/chatMessages`), (messages) => {
+    const newMessages = messages || [];
+    newMessages.push({ senderIndex: myPlayerIndex, text: text, timestamp: Date.now() });
+    if (newMessages.length > 50) newMessages.shift();
+    return newMessages;
+  });
+};
+
+window._sendChat = function() {
+  const input = document.getElementById('chatInput');
+  if (!input || !input.value.trim() || !roomCode || !currentState) return;
+  const text = input.value.trim();
+  input.value = '';
+  input.focus();
+  runTransaction(ref(db, `games/clover/${roomCode}/chatMessages`), (messages) => {
+    const newMessages = messages || [];
+    newMessages.push({ senderIndex: myPlayerIndex, text: text, timestamp: Date.now() });
+    if (newMessages.length > 50) newMessages.shift();
+    return newMessages;
+  });
+};
+
+window._showRulebook = function() {
+  const overlay = document.createElement('div');
+  overlay.className = 'rulebook-overlay';
+  overlay.onclick = (e) => { if(e.target===overlay) overlay.remove(); };
+  overlay.innerHTML = `
+    <div class="rulebook-content">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+        <span style="font-family:'Caveat', cursive;font-size:28px;color:var(--green-dark);font-weight:700;">Rulebook</span>
+        <button class="btn btn-ghost" style="padding:4px 12px;font-size:13px" onclick="this.closest('.rulebook-overlay').remove()">✕ 閉じる</button>
+      </div>
+
+      <div class="rule-section">
+        <h3>🍀 ゲームの目的</h3>
+        <div class="rule-row"><span>お互いに0〜9の数字が書かれた10枚のカードを使って、大きな花冠を作る（相手より多くのラウンドで勝利する）ことを目指します。</span></div>
+        <div class="rule-row"><span>先に<strong>3回勝つ</strong>か、全5回戦が終わった時点で勝った回数が多い方の勝利です。</span></div>
+      </div>
+
+      <div class="rule-section">
+        <h3>🃏 遊び方</h3>
+        <div class="rule-row"><span>1. 毎ラウンド、自動的に<strong>相手の手札からランダムに1枚</strong>カードを引いて自分の前に置きます。</span></div>
+        <div class="rule-row"><span>2. 次に、<strong>自分の手札から1枚</strong>選びます。</span></div>
+        <div class="rule-row"><span>3. お互いがカードを選んだら、相手から引いたカードと自分が選んだカードの2枚を公開します。</span></div>
+        <div class="rule-row"><span>4. 2枚の<strong>合計値が大きい方</strong>がそのラウンドの勝者となります（合計値が同じ場合は引き分け）。</span></div>
+      </div>
+
+      <div class="rule-section">
+        <h3>⚠️ 特別なカード「4」</h3>
+        <div class="rule-row"><span>数字の『4』は特別なカードです。</span></div>
+        <div class="rule-row"><span style="color:var(--green-dark);font-weight:700;">【4が1枚だけ出た場合】</span><span>合計値が<strong>小さい方</strong>が勝ちになります。</span></div>
+        <div class="rule-row"><span style="color:var(--text-muted);font-weight:700;">【4が2枚以上出た場合】</span><span>合計値に関係なく<strong>強制的に引き分け</strong>となります。</span></div>
+        <div class="rule-row"><span style="font-size:12px;color:var(--text-muted);">※ 自分や相手が引いたカードに「4」が含まれている場合も条件の対象になります。</span></div>
+      </div>
+
+      <button class="btn btn-primary btn-full" style="margin-top:16px" onclick="this.closest('.rulebook-overlay').remove()">閉じる</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+};
+
+window._leaveRoom = async function() {
+  if (roomCode) {
+    if (roomListener) off(ref(db, `games/clover/${roomCode}`));
+    const snap = await get(ref(db, `games/clover/${roomCode}`));
+    if (snap.exists()) {
+      const st = snap.val();
+      if (myPlayerIndex === 0) {
+        await set(ref(db, `games/clover/${roomCode}`), null);
+      } else {
+        if (st.players) {
+          st.players.splice(myPlayerIndex, 1);
+          await update(ref(db, `games/clover/${roomCode}`), { players: st.players });
+        }
+      }
+    }
+  }
+  location.href = '../';
+};
+</script>
+</body>
+</html>

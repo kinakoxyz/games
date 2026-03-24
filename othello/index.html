@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
+<title>Othello Online</title>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg: #1a1a1a; --sur: #2d2d2d; --sur2: #3d3d3d; --bdr: #4d4d4d;
+  --txt: #f5f5f5; --txt2: #b3b3b3; --txt3: #808080;
+  --primary: #4ade80; --primary-hover: #22c55e;
+  --gold: #facc15;
+  --red: #ef4444; --blue: #3b82f6;
+  --board-bg: #2e8b57; /* 盤面の緑色 */
+  --r: 8px; --rl: 12px; --sh: 0 4px 15px rgba(0,0,0,0.5);
+  --sans: 'Noto Sans JP', sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;background:var(--bg);color:var(--txt);font-family:var(--sans);overflow:hidden;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.hidden{display:none!important}
+
+/* ===== ボタン ===== */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:11px 22px;background:var(--primary);color:#000;font-family:var(--sans);font-weight:700;font-size:.9rem;border:none;border-radius:var(--r);cursor:pointer;transition:all .15s;white-space:nowrap;box-shadow:0 4px 10px rgba(0,0,0,0.3)}
+.btn:hover:not(:disabled){background:var(--primary-hover);box-shadow:0 6px 15px rgba(74,222,128,0.4)}
+.btn:active:not(:disabled){transform:scale(.96)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn.sec{background:var(--sur2);color:var(--txt);border:1px solid var(--bdr);box-shadow:none}
+.btn.sec:hover:not(:disabled){background:#4a4a4a}
+.btn.sm{padding:7px 14px;font-size:.8rem}
+.btn.lg{padding:13px 28px;font-size:1rem}
+.btn.full{width:100%}
+input,select{background:#111;border:1px solid var(--bdr);border-radius:var(--r);color:var(--txt);font-family:var(--sans);font-size:.93rem;padding:10px 13px;width:100%;outline:none;transition:all .2s;}
+input:focus,select:focus{border-color:var(--primary);box-shadow:0 0 8px rgba(74,222,128,0.3)}
+label{font-size:.75rem;color:var(--txt2);display:block;margin-bottom:4px;}
+
+/* ===== モーダル・トースト ===== */
+.moverlay{position:fixed;inset:0;background:rgba(0,0,0,.8);display:flex;align-items:center;justify-content:center;z-index:300;padding:20px;backdrop-filter:blur(4px)}
+.modal{background:var(--sur);border:1px solid var(--bdr);border-radius:var(--rl);padding:24px;width:100%;max-width:400px;box-shadow:var(--sh);animation:min .2s ease-out;}
+@keyframes min{from{opacity:0;transform:scale(.95) translateY(10px)}}
+.mtitle{font-size:1.2rem;font-weight:bold;margin-bottom:12px;text-align:center;color:var(--txt);}
+.mbody{font-size:.9rem;color:var(--txt2);line-height:1.5;margin-bottom:20px;text-align:center; white-space:pre-wrap;}
+.mact{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+
+#toast-wrap{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:600;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none}
+.toast{background:rgba(40,40,40,0.95);border:1px solid var(--bdr);color:var(--txt);padding:10px 20px;border-radius:24px;font-weight:bold;font-size:.9rem;box-shadow:var(--sh);animation:tin .3s ease,tout .4s ease 2.4s forwards}
+@keyframes tin{from{opacity:0;transform:translateY(10px)}}
+@keyframes tout{to{opacity:0;transform:translateY(-10px)}}
+
+/* ===== 画面レイアウト ===== */
+#scr-loading{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1000;gap:15px}
+.logo{font-size:2.5rem;font-weight:900;color:var(--primary);letter-spacing:2px;text-shadow:0 0 15px rgba(74,222,128,0.5);}
+.spin{width:30px;height:30px;border:3px solid var(--bdr);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ロビー・待合室 */
+.scr-container{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;padding:20px 16px;gap:16px;overflow-y:auto;z-index:1}
+.panel{background:var(--sur);border:1px solid var(--bdr);border-radius:var(--rl);padding:24px;width:100%;max-width:440px;box-shadow:var(--sh)}
+.panel-title{font-size:1.1rem;font-weight:bold;color:var(--txt);margin-bottom:16px;border-bottom:1px solid var(--bdr);padding-bottom:8px}
+.fg{margin-bottom:14px}
+.plist{list-style:none;display:flex;flex-direction:column;gap:8px;margin-bottom:16px}
+.pitem{display:flex;align-items:center;gap:10px;background:var(--sur2);border:1px solid var(--bdr);border-radius:var(--r);padding:10px;font-size:.9rem}
+.pitem.me{border-color:var(--primary);box-shadow:0 0 8px rgba(74,222,128,0.2)}
+.badge{margin-left:auto;font-size:.65rem;font-weight:700;padding:3px 8px;border-radius:4px;}
+.badge.host{background:var(--red);color:#fff}
+.badge.me{background:var(--primary);color:#000}
+.badge.cpu{background:var(--bdr);color:var(--txt2)}
+.badge.spec{background:var(--sur2);border:1px solid var(--bdr);color:var(--txt2)}
+
+/* ===== ゲーム画面 ===== */
+#scr-game{position:fixed;inset:0;display:grid;grid-template-rows:50px 1fr;overflow:hidden;z-index:1}
+.ghdr{display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:var(--sur);border-bottom:1px solid var(--bdr);z-index:20}
+.gmain{display:grid;grid-template-columns:1fr 260px;overflow:hidden;position:relative}
+@media(max-width:700px){.gmain{grid-template-columns:1fr;grid-template-rows:1fr 200px}}
+
+/* 盤面 */
+.gtable{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;background:var(--bg);overflow-y:auto;padding:20px 10px;}
+.turn-text { font-size: 1.1rem; font-weight: bold; margin-bottom: 10px; padding: 6px 16px; border-radius: 20px; background: var(--sur); border: 1px solid var(--bdr); text-align: center; }
+.turn-text.is-me { color: var(--primary); border-color: var(--primary); box-shadow: 0 0 10px rgba(74,222,128,0.2); }
+
+#board {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    grid-template-rows: repeat(8, 1fr);
+    gap: 2px;
+    background-color: #111;
+    border: 4px solid #111;
+    width: 100%;
+    max-width: 480px;
+    aspect-ratio: 1;
+    margin: 10px auto;
+    box-shadow: 0 15px 35px rgba(0,0,0,0.8);
+    border-radius: 6px;
+}
+.cell {
+    background-color: var(--board-bg);
+    position: relative;
+    display: flex; justify-content: center; align-items: center;
+    cursor: default;
+    transition: filter 0.2s;
+}
+.cell.valid { cursor: pointer; }
+.cell.valid::after {
+    content: ''; position: absolute; width: 18%; height: 18%; background: rgba(0,0,0,0.3); border-radius: 50%;
+}
+.cell.valid:hover { filter: brightness(1.15); }
+.cell.valid:hover::after { background: rgba(0,0,0,0.6); }
+
+.piece-container {
+    width: 86%; height: 86%;
+    position: absolute;
+    perspective: 600px;
+    pointer-events: none;
+    border-radius: 50%;
+}
+.piece {
+    width: 100%; height: 100%;
+    position: relative;
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    transform-style: preserve-3d;
+    border-radius: 50%;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+}
+.piece .face {
+    position: absolute; width: 100%; height: 100%; border-radius: 50%; backface-visibility: hidden;
+}
+.piece .face.black { background: radial-gradient(circle at 30% 30%, #444, #111); transform: rotateY(0deg); }
+.piece .face.white { background: radial-gradient(circle at 30% 30%, #fff, #ddd); transform: rotateY(180deg); }
+.piece.is-black { transform: rotateY(0deg); }
+.piece.is-white { transform: rotateY(180deg); }
+
+@keyframes dropIn {
+    0% { transform: scale(1.5); opacity: 0; box-shadow: 0 20px 20px rgba(0,0,0,0.6); }
+    100% { transform: scale(1); opacity: 1; box-shadow: 0 4px 8px rgba(0,0,0,0.5); }
+}
+.piece-container.new-piece { animation: dropIn 0.3s ease-out forwards; }
+
+.cell.last-move::before {
+    content: ''; position: absolute;
+    width: 14%; height: 14%; background: var(--red); border-radius: 50%;
+    z-index: 10; box-shadow: 0 0 6px var(--red);
+}
+
+.board-result-overlay {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    pointer-events: none; z-index: 100;
+}
+.board-result-text {
+    font-size: min(10vw, 3.2rem); font-weight: 900; letter-spacing: 2px; text-align: center;
+    text-shadow: 0 5px 20px rgba(0,0,0,0.8), 0 0 10px rgba(0,0,0,0.8); opacity: 0;
+}
+.board-result-text.show { animation: resultPop 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+@keyframes resultPop {
+    0% { opacity: 0; transform: scale(0.3) translateY(40px); }
+    100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+.res-win { color: var(--gold); }
+.res-lose { color: #60a5fa; }
+.res-draw { color: var(--primary); }
+
+/* ログ・チャット */
+.lpanel{background:var(--sur);border-left:1px solid var(--bdr);display:flex;flex-direction:column;overflow:hidden}
+@media(max-width:700px){.lpanel{border-left:none;border-top:1px solid var(--bdr)}}
+.lhdr{padding:10px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;justify-content:center;background:var(--sur2)}
+.lscroll{flex:1;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:4px}
+.lentry{font-size:.8rem;line-height:1.4;padding:6px 8px;border-radius:6px;animation:tin .3s ease;}
+.lentry.chat{color:var(--txt);background:rgba(59,130,246,0.1);border-left:3px solid var(--blue)}
+.lentry.sys{color:var(--txt2);background:rgba(255,255,255,0.05);text-align:center;}
+.chat-ctrl{padding:8px;background:var(--sur2);border-top:1px solid var(--bdr)}
+</style>
+</head>
+<body>
+
+<!-- ローディング -->
+<div id="scr-loading">
+  <div class="logo">Othello</div>
+  <div class="spin"></div>
+</div>
+
+<!-- ロビー -->
+<div id="scr-lobby" class="scr-container hidden">
+  <div style="text-align:center;padding:10px 0">
+    <div class="logo">Othello</div>
+    <div style="font-size:0.8rem; color:var(--txt2); letter-spacing:2px; margin-top:4px;">ONLINE MULTIPLAYER</div>
+  </div>
+  <div class="panel"><div class="panel-title">🆕 部屋を作成する</div>
+    <div class="fg"><label>あなたの名前</label><input id="c-name" type="text" placeholder="例：プレイヤー1" maxlength="10"/></div>
+    <button class="btn lg full" onclick="createRoom()">部屋を作る</button>
+  </div>
+  <div style="font-size:0.8rem; color:var(--txt3);">または</div>
+  <div class="panel"><div class="panel-title">🚪 部屋に参加する</div>
+    <div class="fg"><label>あなたの名前</label><input id="j-name" type="text" placeholder="例：プレイヤー2" maxlength="10"/></div>
+    <div class="fg"><label>ルームID（4桁）</label>
+      <input id="j-id" type="text" placeholder="0000" maxlength="4" inputmode="numeric" style="letter-spacing:.5em;text-align:center;font-size:1.5rem;"/>
+    </div>
+    <button class="btn sec lg full" onclick="joinRoom()">参加する</button>
+  </div>
+  <button class="btn sec" onclick="openModal('modal-rule')" style="max-width:440px;width:100%;">📖 ルール・遊び方を見る</button>
+  <button class="btn sec" onclick="location.href='../'" style="max-width:440px;width:100%;border-color:transparent;">🏠 ゲーム一覧に戻る</button>
+</div>
+
+<!-- 待合室 -->
+<div id="scr-room" class="scr-container hidden">
+  <div class="panel">
+    <div class="panel-title">🏰 待合室</div>
+    <div style="display:flex;align-items:center;gap:12px;background:#111;border:1px solid var(--bdr);border-radius:var(--r);padding:10px;margin-bottom:14px;">
+      <div><div style="font-size:.75rem;color:var(--txt3);">ルームID</div>
+        <div id="disp-rid" style="font-size:1.8rem;letter-spacing:4px;color:var(--gold);font-weight:bold;">----</div></div>
+      <button class="btn sec sm" style="margin-left:auto" onclick="navigator.clipboard.writeText(roomId).then(()=>toast('コピーしました'))">コピー</button>
+    </div>
+    <ul class="plist" id="rplist"></ul>
+    
+    <div id="hctrl" class="hidden" style="margin-top:20px; border-top:1px solid var(--bdr); padding-top:16px;">
+      <div class="fg">
+        <label>CPUの強さ</label>
+        <div style="display:flex; gap:6px;">
+          <button id="btn-cpu-weak" class="btn sec sm" style="flex:1;" onclick="changeCpuLevel('weak')">弱い</button>
+          <button id="btn-cpu-normal" class="btn sec sm" style="flex:1;" onclick="changeCpuLevel('normal')">普通</button>
+          <button id="btn-cpu-strong" class="btn sm" style="flex:1;" onclick="changeCpuLevel('strong')">強い</button>
+        </div>
+      </div>
+      <div style="display:flex; gap:8px; margin-bottom:12px;">
+        <button class="btn sec" style="flex:1;" onclick="addCpu()">🤖 CPUを追加</button>
+        <button class="btn sec" style="flex:1;" onclick="removeCpu()">👋 CPUを削除</button>
+      </div>
+      <button class="btn lg full" id="start-btn" onclick="startGame()" disabled>ゲーム開始（2人必要）</button>
+    </div>
+    <div id="gwait" class="hidden" style="font-size:.85rem;color:var(--txt3);text-align:center;padding:16px 0">ホストが開始するのをお待ちください...</div>
+  </div>
+
+  <div class="panel" style="padding:16px;">
+    <div style="font-size:.95rem; font-weight:bold; margin-bottom:10px; color:var(--txt);">💬 チャット</div>
+    <div style="background:#111; border:1px solid var(--bdr); border-radius:var(--r); padding:10px; display:flex; flex-direction:column; height:200px;">
+      <div id="r-lscroll" style="flex:1; overflow-y:auto; margin-bottom:8px; display:flex; flex-direction:column; gap:4px; padding-right:4px;"></div>
+      <div style="display:flex; gap:6px; margin-bottom:6px;">
+        <input type="text" id="r-chatInput" placeholder="メッセージ..." maxlength="30" onkeypress="if(event.key==='Enter') sendChat('r-chatInput')" style="font-size:.8rem; padding:6px 10px;">
+        <button class="btn sm" onclick="sendChat('r-chatInput')" style="padding:6px 12px; flex-shrink:0;">送信</button>
+      </div>
+      <div style="display:flex; gap:4px; justify-content:center; flex-wrap:wrap;">
+        <button class="btn sec sm" style="padding:4px 10px; border-radius:16px;" onclick="sendStamp('👍')">👍</button>
+        <button class="btn sec sm" style="padding:4px 10px; border-radius:16px;" onclick="sendStamp('🤔')">🤔</button>
+        <button class="btn sec sm" style="padding:4px 10px; border-radius:16px;" onclick="sendStamp('💡')">💡</button>
+        <button class="btn sec sm" style="padding:4px 10px; border-radius:16px;" onclick="sendStamp('💦')">💦</button>
+      </div>
+    </div>
+  </div>
+
+  <button class="btn sec" onclick="if(confirm('本当に退室しますか？')) leaveRoom()" style="max-width:440px;width:100%">退室する</button>
+  <button class="btn sec" onclick="openModal('modal-rule')" style="max-width:440px;width:100%;margin-top:-8px;border-color:transparent;">📖 ルールを確認する</button>
+</div>
+
+<!-- ゲーム画面 -->
+<div id="scr-game" class="hidden">
+  <div class="ghdr">
+    <span style="font-weight:bold; color:var(--primary); font-size:1.2rem; letter-spacing:1px;">Othello</span>
+    <div style="display:flex; gap:8px;">
+      <button class="btn sec sm hidden" id="res-show-btn" style="padding:4px 10px; font-size:.7rem; color:var(--gold); border-color:var(--gold);" onclick="openModal('modal-result')">🏆 結果</button>
+      <button class="btn sec sm" style="padding:4px 10px; font-size:.7rem;" onclick="openModal('modal-rule')">📖 ルール</button>
+      <button class="btn sec sm" style="padding:4px 10px; font-size:.7rem;" onclick="if(confirm('本当に退室しますか？')) leaveRoom()">🚪 退室</button>
+    </div>
+  </div>
+  
+  <div class="gmain">
+    <div class="gtable">
+      <div id="turn-text" class="turn-text">お待ちください...</div>
+      <div style="position:relative; width: 100%; max-width: 480px;">
+        <div id="board"></div>
+        <div id="board-result-overlay" class="board-result-overlay hidden">
+          <div id="board-result-text" class="board-result-text"></div>
+        </div>
+      </div>
+      <div id="players-info" style="margin-top:16px; display:flex; gap:20px; font-size:0.9rem; color:var(--txt2);"></div>
+    </div>
+    
+    <div class="lpanel">
+      <div class="lhdr"><span style="font-weight:bold; color:var(--txt3); font-size:0.85rem; letter-spacing:1px;">💬 CHAT</span></div>
+      <div class="lscroll" id="cscroll"></div>
+      <div class="chat-ctrl" id="chat-ctrl">
+        <div style="display:flex; gap:6px; margin-bottom:8px;">
+          <input type="text" id="chatInput" placeholder="メッセージ..." maxlength="30" onkeypress="if(event.key==='Enter') sendChat()">
+          <button class="btn sm" onclick="sendChat()" style="padding:6px 12px; flex-shrink:0;">送信</button>
+        </div>
+        <div style="display:flex; gap:6px; justify-content:center; flex-wrap:wrap;">
+          <button class="btn sec sm" style="padding:4px 10px; border-radius:16px;" onclick="sendStamp('👍')">👍</button>
+          <button class="btn sec sm" style="padding:4px 10px; border-radius:16px;" onclick="sendStamp('🤔')">🤔</button>
+          <button class="btn sec sm" style="padding:4px 10px; border-radius:16px;" onclick="sendStamp('💦')">💦</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 結果モーダル -->
+<div id="modal-result" class="moverlay hidden">
+  <div class="modal">
+    <div class="mtitle" style="font-size:1.6rem; color:var(--gold);">GAME SET</div>
+    <div class="mbody" id="result-msg" style="font-size:1.2rem; font-weight:bold;"></div>
+    <div class="mact" style="flex-direction:column; gap:10px;">
+      <button class="btn full" id="rematch-btn" onclick="requestRematch()" style="display:none;">もう一度遊ぶ</button>
+      <button class="btn sec full" onclick="closeModal('modal-result')">盤面を見る</button>
+      <button class="btn sec full" onclick="if(confirm('ロビーに戻って退室しますか？')) leaveRoom()">ロビーに戻る</button>
+    </div>
+  </div>
+</div>
+
+<!-- ルールブック -->
+<div id="modal-rule" class="moverlay hidden" onclick="closeModal('modal-rule')">
+  <div class="modal" style="max-width:500px; max-height:85vh; display:flex; flex-direction:column;" onclick="event.stopPropagation()">
+    <div class="mtitle">📖 ルールブック</div>
+    <div style="overflow-y:auto; padding-right:8px; margin-bottom:14px; font-size:.85rem; color:var(--txt2); line-height:1.7; text-align:left;">
+      <h3 style="color:var(--gold); margin:0 0 8px; font-size:1rem; border-bottom:1px solid var(--bdr); padding-bottom:4px;">🎯 ゲームの目的</h3>
+      <p style="margin-bottom:16px;">盤上に自分の石を置き、相手の石を挟んで自分の色に変えていきます。<strong>最終的に盤面にある石の数が多いプレイヤー</strong>の勝利です。</p>
+
+      <h3 style="color:var(--gold); margin:0 0 8px; font-size:1rem; border-bottom:1px solid var(--bdr); padding-bottom:4px;">🕹️ 基本アクション</h3>
+      <p style="margin-bottom:6px;">プレイヤーは交互に、盤面の空いているマスに石を置きます。<br>ただし、<strong>相手の石を挟める場所（縦・横・斜め）にしか置くことができません。</strong></p>
+      <div style="background:var(--sur2); border:1px solid var(--bdr); border-radius:var(--r); padding:10px; margin-bottom:16px;">
+        <p style="margin-bottom:8px; color:var(--primary); font-weight:bold;">💡 パスについて</p>
+        <p style="margin-bottom:0; color:var(--txt2);">もし置ける場所が一つもない場合は、自動的に「パス」となり、相手のターンが連続します。<br>両者とも置ける場所がなくなった時点でゲーム終了となります。</p>
+      </div>
+    </div>
+    <div class="mact" style="justify-content:center; flex-shrink:0;">
+      <button class="btn sm full" onclick="closeModal('modal-rule')">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-wrap"></div>
+
+<script>
+"use strict";
+
+// ============================================================
+// Firebase Config
+// ============================================================
+const firebaseConfig = {
+  apiKey:            "AIzaSyCW7voDrgpBC0AabZ_O3o1ZDKJ9fqnKa7k",
+  authDomain:        "grimoire-eclipse.firebaseapp.com",
+  databaseURL:       "https://grimoire-eclipse-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:         "grimoire-eclipse",
+  storageBucket:     "grimoire-eclipse.firebasestorage.app",
+  messagingSenderId: "429385058377",
+  appId:             "1:429385058377:web:aaa1f22471f2bc938fd798"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db   = firebase.database();
+
+// ============================================================
+// Globals & Utils
+// ============================================================
+let myUid = null, myName = "", roomId = null, isHost = false, gs = null;
+let cpuTimer = null, lastToastTime = 0;
+
+auth.onAuthStateChanged(user => {
+  if(user){ myUid = user.uid; showScreen("lobby"); }
+  else auth.signInAnonymously().catch(e => console.error(e));
+});
+
+function showScreen(id){
+  ["loading","lobby","room","game"].forEach(s => document.getElementById(`scr-${s}`).classList.toggle("hidden", s!==id));
+}
+function toast(msg){
+  const el = document.createElement("div"); el.className = "toast"; el.textContent = msg;
+  document.getElementById("toast-wrap").appendChild(el);
+  setTimeout(()=>el.remove(), 2800);
+}
+function openModal(id){ document.getElementById(id).classList.remove("hidden"); }
+function closeModal(id){ document.getElementById(id).classList.add("hidden"); }
+
+// ============================================================
+// Lobby / Room
+// ============================================================
+async function createRoom(){
+  const name = document.getElementById("c-name").value.trim();
+  if(!name){ toast("名前を入力してください"); return; }
+  myName = name; roomId = String(Math.floor(1000+Math.random()*9000)); isHost = true;
+  try {
+    await db.ref(`games/othello/${roomId}`).set({
+      host: myUid, phase: "waiting", cpuLevel: "strong",
+      players: { [myUid]: { name: myName, uid: myUid, isCpu: false } }
+    });
+    enterRoom();
+  } catch (e) { console.error(e); toast("通信エラーが発生しました"); }
+}
+
+async function joinRoom(){
+  const name = document.getElementById("j-name").value.trim();
+  const id = document.getElementById("j-id").value.trim();
+  if(!name||id.length!==4){ toast("正しく入力してください"); return; }
+  myName = name; roomId = id; isHost = false;
+  try {
+    const snap = await db.ref(`games/othello/${roomId}`).once("value");
+    if(!snap.exists()){ toast("ルームが見つかりません"); return; }
+    const r = snap.val();
+    const pCount = Object.values(r.players||{}).filter(p => !p.isSpectator).length;
+    const isSpectator = pCount >= 2 || r.phase !== "waiting";
+    if (isSpectator) toast("観戦者として参加します");
+    await db.ref(`games/othello/${roomId}/players/${myUid}`).set({ name: myName, uid: myUid, isCpu: false, isSpectator });
+    enterRoom();
+  } catch (e) { console.error(e); toast("通信エラーが発生しました"); }
+}
+
+async function addCpu() {
+  if(!isHost || !gs) return;
+  const pCount = Object.values(gs.players||{}).filter(p => !p.isSpectator).length;
+  if(pCount >= 2){ toast("プレイヤー枠が満員です"); return; }
+  const cpuUid = "cpu_" + Math.random().toString(36).substr(2,6);
+  await db.ref(`games/othello/${roomId}/players/${cpuUid}`).set({ name: `CPU`, uid: cpuUid, isCpu: true, isSpectator: false });
+}
+
+async function removeCpu() {
+  if(!isHost || !gs || !gs.players) return;
+  const cpuKeys = Object.keys(gs.players).filter(uid => gs.players[uid].isCpu);
+  if(cpuKeys.length === 0){ toast("削除するCPUがいません"); return; }
+  await db.ref(`games/othello/${roomId}/players/${cpuKeys[cpuKeys.length-1]}`).remove();
+}
+
+function enterRoom(){
+  showScreen("room");
+  document.getElementById("disp-rid").textContent = roomId;
+  if(isHost){ document.getElementById("hctrl").classList.remove("hidden"); document.getElementById("gwait").classList.add("hidden"); }
+  else { document.getElementById("hctrl").classList.add("hidden"); document.getElementById("gwait").classList.remove("hidden"); }
+  
+  db.ref(`games/othello/${roomId}`).on("value", snap => {
+    if(!snap.exists()){ toast("解散されました"); leaveRoom(true); return; }
+    gs = snap.val();
+    const list = document.getElementById("rplist");
+    list.innerHTML = "";
+    Object.values(gs.players||{}).forEach(p => {
+      list.innerHTML += `<li class="pitem ${p.uid===myUid?'me':''}"><div style="font-weight:bold">${p.name}</div>
+        ${p.uid===gs.host?'<span class="badge host">HOST</span>':''}
+        ${p.uid===myUid?'<span class="badge me">YOU</span>':''}
+        ${p.isCpu?'<span class="badge cpu">CPU</span>':''}
+        ${p.isSpectator?'<span class="badge spec">観戦</span>':''}</li>`;
+    });
+    const pCount = Object.values(gs.players||{}).filter(p => !p.isSpectator).length;
+    const btn = document.getElementById("start-btn");
+    if(btn) btn.disabled = (pCount !== 2);
+    
+    const level = gs.cpuLevel || "strong";
+    ["weak", "normal", "strong"].forEach(lvl => {
+      const b = document.getElementById("btn-cpu-" + lvl);
+      if(b) { b.className = (level === lvl) ? "btn sm" : "btn sec sm"; b.disabled = !isHost; }
+    });
+
+    const msgs = gs.chatMessages || [];
+    if (msgs.length > 0) {
+      const lastMsg = msgs[msgs.length - 1];
+      if (lastMsg.ts > lastToastTime) {
+        lastToastTime = lastMsg.ts;
+        if (lastMsg.actorUid !== myUid && gs.phase === "waiting") toast(lastMsg.text);
+      }
+    }
+    renderRoomChat(msgs);
+    if(gs.phase !== "waiting"){ db.ref(`games/othello/${roomId}`).off(); enterGame(); }
+  });
+}
+
+function changeCpuLevel(level) {
+  if (!isHost || !roomId) return;
+  db.ref(`games/othello/${roomId}`).update({ cpuLevel: level });
+}
+
+function renderRoomChat(msgs) {
+  const scroll = document.getElementById("r-lscroll");
+  if (!scroll) return;
+  const isAtBottom = scroll.scrollTop + scroll.clientHeight >= scroll.scrollHeight - 10;
+  scroll.innerHTML = "";
+  msgs.forEach(m => { const d = document.createElement("div"); d.className = "lentry chat"; d.textContent = m.text; scroll.appendChild(d); });
+  if(isAtBottom || scroll.children.length <= 1) scroll.scrollTop = scroll.scrollHeight;
+}
+
+async function leaveRoom(silent=false){
+  db.ref(`games/othello/${roomId}`).off();
+  if(roomId && myUid){
+    await db.ref(`games/othello/${roomId}/players/${myUid}`).remove();
+    if(isHost) await db.ref(`games/othello/${roomId}`).remove();
+  }
+  roomId = null; isHost = false; gs = null;
+  closeModal("modal-result");
+  if(!silent) showScreen("lobby");
+}
+
+// ============================================================
+// Game Logic
+// ============================================================
+async function startGame(){
+  const players = Object.values(gs.players).filter(p => !p.isSpectator);
+  if(players.length !== 2) return;
+  let board = Array(64).fill(0);
+  board[27] = 2; board[28] = 1;
+  board[35] = 1; board[36] = 2;
+  
+  const colors = Math.random() < 0.5 ? [1, 2] : [2, 1];
+  const assignedPlayers = {};
+  Object.values(gs.players).forEach(p => {
+    if (p.isSpectator) assignedPlayers[p.uid] = p;
+    else { const idx = players.findIndex(pl => pl.uid === p.uid); assignedPlayers[p.uid] = { ...p, color: colors[idx] }; }
+  });
+
+  await db.ref(`games/othello/${roomId}`).update({
+    phase: "playing", players: assignedPlayers, board, turn: 1, winner: null,
+    chatMessages: [], lastMove: -1, logs: []
+  });
+}
+
+function enterGame(){
+  showScreen("game");
+  db.ref(`games/othello/${roomId}`).on("value", snap => {
+    if(!snap.exists()){ leaveRoom(true); return; }
+    gs = snap.val();
+    
+    gs.board = gs.board ? Array.from({length: 64}, (_, i) => gs.board[i] !== undefined ? gs.board[i] : 0) : Array(64).fill(0);
+    
+    const msgs = gs.chatMessages || [];
+    if (msgs.length > 0) {
+      const lastMsg = msgs[msgs.length - 1];
+      if (lastMsg.ts > lastToastTime) {
+        lastToastTime = lastMsg.ts;
+        if (lastMsg.actorUid !== myUid) toast(lastMsg.text);
+      }
+    }
+    renderGame();
+    
+    if(isHost && gs.phase === "playing") {
+      const curPlayer = Object.values(gs.players).find(p => p.color === gs.turn);
+      if (curPlayer && curPlayer.isCpu) {
+        if(!cpuTimer) cpuTimer = setTimeout(() => doCpuTurn(), 1000);
+      } else {
+        if(cpuTimer){ clearTimeout(cpuTimer); cpuTimer = null; }
+      }
+    }
+  });
+}
+
+function renderGame(){
+  if(!gs || !gs.players) return;
+  const me = gs.players[myUid];
+  const isMyTurn = (gs.phase === "playing" && me && !me.isSpectator && me.color === gs.turn);
+  
+  const turnTxt = document.getElementById("turn-text");
+  if(gs.phase === "ended"){
+    turnTxt.textContent = "ゲーム終了";
+    turnTxt.className = "turn-text";
+  } else {
+    const turnName = Object.values(gs.players).find(p => p.color === gs.turn)?.name || "???";
+    const colName = gs.turn === 1 ? "黒" : "白";
+    turnTxt.textContent = isMyTurn ? `⚡ あなたの番です (${colName})` : `${turnName} の番です (${colName})`;
+    turnTxt.className = "turn-text" + (isMyTurn ? " is-me" : "");
+  }
+
+  const boardEl = document.getElementById('board');
+  
+  if (boardEl.children.length === 0) {
+    for (let i = 0; i < 64; i++) {
+      const cell = document.createElement("div");
+      cell.className = "cell";
+      cell.id = `o-cell-${i}`;
+      boardEl.appendChild(cell);
+    }
+  }
+  
+  let validMoves = [];
+  if (gs.phase === "playing" && isMyTurn) {
+    validMoves = getValidMoves(gs.board, gs.turn);
+  }
+
+  for (let i = 0; i < 64; i++) {
+    const cell = document.getElementById(`o-cell-${i}`);
+    cell.className = "cell"; // リセット
+    if (gs.lastMove === i) cell.classList.add("last-move");
+
+    if (validMoves.includes(i)) {
+        cell.classList.add("valid");
+        cell.onclick = () => executeMove(i);
+    } else {
+        cell.onclick = null;
+    }
+
+    const currentPieceCont = cell.querySelector('.piece-container');
+
+    if (gs.board[i] !== 0) {
+        const isBlack = gs.board[i] === 1;
+        
+        if (!currentPieceCont) {
+            const pCont = document.createElement("div");
+            pCont.className = "piece-container";
+            if (window._prevBoard && window._prevBoard.length > 0 && window._prevBoard[i] === 0) pCont.classList.add("new-piece");
+            
+            const piece = document.createElement("div");
+            piece.className = "piece " + (isBlack ? "is-black" : "is-white");
+            
+            const faceBlack = document.createElement("div"); faceBlack.className = "face black";
+            const faceWhite = document.createElement("div"); faceWhite.className = "face white";
+            piece.appendChild(faceBlack); piece.appendChild(faceWhite);
+            
+            pCont.appendChild(piece);
+            cell.appendChild(pCont);
+        } else {
+            currentPieceCont.classList.remove("new-piece");
+            const piece = currentPieceCont.querySelector('.piece');
+            piece.className = "piece " + (isBlack ? "is-black" : "is-white");
+        }
+    } else {
+        if (currentPieceCont) currentPieceCont.remove();
+    }
+  }
+  
+  const bCount = gs.board.filter(c => c === 1).length;
+  const wCount = gs.board.filter(c => c === 2).length;
+
+  let pInfoHtml = "";
+  Object.values(gs.players).filter(p => !p.isSpectator).forEach(p => {
+    const cStr = p.color === 1 ? `⚫黒 (${bCount}枚)` : `⚪白 (${wCount}枚)`;
+    pInfoHtml += `<div>${p.uid===myUid?'<strong>(あなた)</strong> ':''}${p.name} : ${cStr}</div>`;
+  });
+  document.getElementById("players-info").innerHTML = pInfoHtml;
+
+  window._prevBoard = gs.board ? [...gs.board] : [];
+
+  const cscroll = document.getElementById("cscroll");
+  const isChatAtBottom = cscroll.scrollTop + cscroll.clientHeight >= cscroll.scrollHeight - 10;
+  cscroll.innerHTML = "";
+  let combined = [...(gs.logs||[]), ...(gs.chatMessages||[])];
+  combined.sort((a,b) => (a.ts || 0) - (b.ts || 0));
+  combined.forEach(m => {
+    const d = document.createElement("div");
+    d.className = m.type === "sys" ? "lentry sys" : "lentry chat";
+    d.textContent = m.text;
+    cscroll.appendChild(d);
+  });
+  if(isChatAtBottom) cscroll.scrollTop = cscroll.scrollHeight;
+
+  if(gs.phase === "ended"){
+    document.getElementById("res-show-btn").classList.remove("hidden");
+    if(!window._resultShown){
+      window._resultShown = true;
+      const isWinner = gs.winner === gs.players[myUid]?.color;
+      const isDraw = gs.winner === 3;
+      
+      const rOverlay = document.getElementById("board-result-overlay");
+      const rText = document.getElementById("board-result-text");
+      rOverlay.classList.remove("hidden");
+      if(isDraw){
+        rText.textContent = "DRAW";
+        rText.className = "board-result-text show res-draw";
+      } else if (me && me.isSpectator) {
+        rText.textContent = "GAME SET";
+        rText.className = "board-result-text show res-win";
+      } else if(isWinner){
+        rText.textContent = "YOU WIN";
+        rText.className = "board-result-text show res-win";
+      } else {
+        rText.textContent = "YOU LOSE";
+        rText.className = "board-result-text show res-lose";
+      }
+      
+      setTimeout(() => {
+        if(!document.getElementById("modal-result").classList.contains("shown")){
+          document.getElementById("modal-result").classList.add("shown");
+          if(isDraw){
+             document.getElementById("result-msg").textContent = `🤝 引き分け！ (${bCount} 対 ${wCount})`;
+          } else {
+             const winName = Object.values(gs.players).find(p => p.color === gs.winner)?.name || "???";
+             document.getElementById("result-msg").textContent = `🎉 ${winName} の勝利！ (${bCount} 対 ${wCount})`;
+          }
+          document.getElementById("rematch-btn").style.display = isHost ? "block" : "none";
+          openModal("modal-result");
+        }
+      }, 1500);
+    }
+  } else if (gs.phase === "playing") {
+    document.getElementById("res-show-btn").classList.add("hidden");
+    window._resultShown = false;
+    document.getElementById("board-result-overlay").classList.add("hidden");
+    document.getElementById("board-result-text").className = "board-result-text";
+    document.getElementById("modal-result").classList.remove("shown");
+    closeModal("modal-result");
+  }
+}
+
+function getFlippable(board, pos, player) {
+  const opp = player === 1 ? 2 : 1;
+  const r = Math.floor(pos / 8);
+  const c = pos % 8;
+  let flippable = [];
+  
+  const dirs = [ [-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1] ];
+  
+  for(let [dr, dc] of dirs){
+    let cr = r + dr, cc = c + dc;
+    let temp = [];
+    while(cr >= 0 && cr < 8 && cc >= 0 && cc < 8) {
+      const idx = cr * 8 + cc;
+      if(board[idx] === opp) {
+        temp.push(idx);
+      } else if (board[idx] === player) {
+        if(temp.length > 0) flippable.push(...temp);
+        break;
+      } else {
+        break;
+      }
+      cr += dr; cc += dc;
+    }
+  }
+  return flippable;
+}
+
+function getValidMoves(board, player) {
+  let moves = [];
+  for(let i=0; i<64; i++){
+    if(board[i] !== 0) continue;
+    if(getFlippable(board, i, player).length > 0) moves.push(i);
+  }
+  return moves;
+}
+
+async function executeMove(pos, isCpu = false) {
+  const player = isCpu ? gs.turn : gs.players[myUid].color;
+  if (gs.turn !== player) return;
+
+  const flips = getFlippable(gs.board, pos, player);
+  if(flips.length === 0) return;
+  
+  let newBoard = [...gs.board];
+  newBoard[pos] = player;
+  flips.forEach(i => newBoard[i] = player);
+  
+  let nextTurn = player === 1 ? 2 : 1;
+  let validMovesNext = getValidMoves(newBoard, nextTurn);
+  
+  let phase = gs.phase;
+  let winner = gs.winner;
+  let logs = gs.logs || [];
+  
+  if (validMovesNext.length === 0) {
+    nextTurn = player;
+    let validMovesCurrent = getValidMoves(newBoard, nextTurn);
+    if(validMovesCurrent.length === 0) {
+      phase = "ended";
+      let bCount = newBoard.filter(c=>c===1).length;
+      let wCount = newBoard.filter(c=>c===2).length;
+      if(bCount > wCount) winner = 1;
+      else if(wCount > bCount) winner = 2;
+      else winner = 3;
+    } else {
+       const oppName = Object.values(gs.players).find(p => p.color !== player)?.name || "相手";
+       logs.push({ text: `💬 システム: ${oppName} は置ける場所がないためパスしました`, ts: Date.now(), type: "sys" });
+    }
+  }
+  
+  await db.ref(`games/othello/${roomId}`).update({
+    board: newBoard, turn: nextTurn, phase, winner: winner || null, lastMove: pos, logs
+  });
+}
+
+const EVAL_BOARD = [
+  120, -20,  20,   5,   5,  20, -20, 120,
+  -20, -40,  -5,  -5,  -5,  -5, -40, -20,
+   20,  -5,  15,   3,   3,  15,  -5,  20,
+    5,  -5,   3,   3,   3,   3,  -5,   5,
+    5,  -5,   3,   3,   3,   3,  -5,   5,
+   20,  -5,  15,   3,   3,  15,  -5,  20,
+  -20, -40,  -5,  -5,  -5,  -5, -40, -20,
+  120, -20,  20,   5,   5,  20, -20, 120,
+];
+
+function evaluate(board, player) {
+  let score = 0;
+  const opp = player === 1 ? 2 : 1;
+  for(let i=0; i<64; i++){
+    if(board[i] === player) score += EVAL_BOARD[i];
+    else if(board[i] === opp) score -= EVAL_BOARD[i];
+  }
+  return score;
+}
+
+function alphabeta(board, player, depth, alpha, beta, isMaximizing, passCount = 0) {
+   if (depth === 0) return evaluate(board, player);
+   
+   const curPlayer = isMaximizing ? player : (player === 1 ? 2 : 1);
+   const oppPlayer = curPlayer === 1 ? 2 : 1;
+   
+   const moves = getValidMoves(board, curPlayer);
+   if (moves.length === 0) {
+      if (passCount === 1) {
+         let myCount = board.filter(c=>c===player).length;
+         let oppCount = board.filter(c=>c===oppPlayer).length;
+         return (myCount - oppCount) * 1000;
+      }
+      return alphabeta(board, player, depth - 1, alpha, beta, !isMaximizing, passCount + 1);
+   }
+   
+   if (isMaximizing) {
+     let maxEval = -Infinity;
+     for (let m of moves) {
+        let nb = [...board];
+        nb[m] = curPlayer;
+        getFlippable(nb, m, curPlayer).forEach(i => nb[i] = curPlayer);
+        let ev = alphabeta(nb, player, depth - 1, alpha, beta, false, 0);
+        maxEval = Math.max(maxEval, ev);
+        alpha = Math.max(alpha, ev);
+        if (beta <= alpha) break;
+     }
+     return maxEval;
+   } else {
+     let minEval = Infinity;
+     for (let m of moves) {
+        let nb = [...board];
+        nb[m] = curPlayer;
+        getFlippable(nb, m, curPlayer).forEach(i => nb[i] = curPlayer);
+        let ev = alphabeta(nb, player, depth - 1, alpha, beta, true, 0);
+        minEval = Math.min(minEval, ev);
+        beta = Math.min(beta, ev);
+        if (beta <= alpha) break;
+     }
+     return minEval;
+   }
+}
+
+async function doCpuTurn() {
+  cpuTimer = null;
+  await new Promise(r => setTimeout(r, 50));
+  
+  const myColor = gs.turn;
+  const level = gs.cpuLevel || "strong";
+  const moves = getValidMoves(gs.board, myColor);
+  if (moves.length === 0) return;
+  
+  let bestMove = moves[0];
+  
+  if (level === "weak") {
+    bestMove = moves[Math.floor(Math.random() * moves.length)];
+  } else if (level === "normal") {
+    let bestScore = -Infinity;
+    let bMoves = [];
+    for(let m of moves) {
+      let nb = [...gs.board];
+      nb[m] = myColor;
+      getFlippable(gs.board, m, myColor).forEach(i => nb[i] = myColor);
+      let sc = evaluate(nb, myColor);
+      if (sc > bestScore) { bestScore = sc; bMoves = [m]; }
+      else if (sc === bestScore) { bMoves.push(m); }
+    }
+    bestMove = bMoves[Math.floor(Math.random() * bMoves.length)];
+  } else {
+    let bestScore = -Infinity;
+    let bMoves = [];
+    for(let m of moves) {
+      let nb = [...gs.board];
+      nb[m] = myColor;
+      getFlippable(gs.board, m, myColor).forEach(i => nb[i] = myColor);
+      let sc = alphabeta(nb, myColor, 4, -Infinity, Infinity, false, 0);
+      if (sc > bestScore) { bestScore = sc; bMoves = [m]; }
+      else if (sc === bestScore) { bMoves.push(m); }
+    }
+    bestMove = bMoves[Math.floor(Math.random() * bMoves.length)];
+  }
+  
+  await executeMove(bestMove, true);
+}
+
+async function requestRematch() {
+  if(!isHost) return;
+  await startGame();
+  closeModal('modal-result');
+}
+
+function sendChat(){
+  const inp = document.getElementById("chatInput");
+  const txt = inp.value.trim();
+  if(!txt || !roomId) return;
+  inp.value = "";
+  const name = gs?.players?.[myUid]?.name || myName || "???";
+  db.ref(`games/othello/${roomId}/chatMessages`).transaction(log => {
+    const newLog = log || [];
+    newLog.push({ text: `💬 ${name}: ${txt}`, ts: Date.now(), actorUid: myUid, type: "msg" });
+    return newLog;
+  });
+}
+function sendStamp(stamp){
+  if(!roomId) return;
+  const name = gs?.players?.[myUid]?.name || myName || "???";
+  db.ref(`games/othello/${roomId}/chatMessages`).transaction(log => {
+    const newLog = log || [];
+    newLog.push({ text: `💬 ${name}: ${stamp}`, ts: Date.now(), actorUid: myUid, type: "msg" });
+    return newLog;
+  });
+}
+</script>
+</body>
+</html>

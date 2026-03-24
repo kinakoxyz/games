@@ -205,6 +205,9 @@
    <button class="filter-btn" data-filter="cpu">
     🤖 CPU対戦あり
    </button>
+   <button class="filter-btn" data-filter="spectator">
+    👁️ 観戦あり
+   </button>
   </div>
   <div class="category fade-in" id="cat-2p">
    <h2 class="category-title">
@@ -247,6 +250,51 @@
       </span>
       <span class="game-tag">
        🤖 CPU
+      </span>
+     </div>
+    </a>
+    <a class="game-card" data-cpu="true" href="./clover-bouquet/">
+     <div class="game-icon-wrapper">
+      <span class="game-icon">
+       🍀
+      </span>
+     </div>
+     <div class="game-title">
+      CLOVER BOUQUET
+     </div>
+     <div class="game-desc">
+      花冠をつくる、ちょっと意地悪なカードゲーム。相手から引いたカードと自分の手札の合計値で勝負。
+     </div>
+     <div class="game-tags">
+      <span class="game-tag">
+       👥 2人
+      </span>
+      <span class="game-tag">
+       🤖 CPU
+      </span>
+     </div>
+    </a>
+    <a class="game-card" data-cpu="true" data-spectator="true" href="./othello/">
+     <div class="game-icon-wrapper">
+      <span class="game-icon">
+       ⚫
+      </span>
+     </div>
+     <div class="game-title">
+      OTHELLO
+     </div>
+     <div class="game-desc">
+      相手の石を挟んで自分の色に変える、定番のボードゲーム。石が反転するアニメーション付き！
+     </div>
+     <div class="game-tags">
+      <span class="game-tag">
+       👥 2人
+      </span>
+      <span class="game-tag">
+       🤖 CPU
+      </span>
+      <span class="game-tag">
+       👁️ 観戦あり
       </span>
      </div>
     </a>
@@ -299,6 +347,27 @@
       </span>
      </div>
     </a>
+    <a class="game-card" href="./order-overload-cafe/">
+     <div class="game-icon-wrapper">
+      <span class="game-icon">
+       ☕
+      </span>
+     </div>
+     <div class="game-title">
+      CAFE OVERLOAD
+     </div>
+     <div class="game-desc">
+      みんなでややこしいカフェの注文を覚える、協力型の記憶ボードゲーム。
+     </div>
+     <div class="game-tags">
+      <span class="game-tag">
+       👥 2〜6人
+      </span>
+      <span class="game-tag">
+       🤝 協力
+      </span>
+     </div>
+    </a>
    </div>
   </div>
   <script>
@@ -323,6 +392,8 @@
               show = true;
             } else if (filter === 'cpu') {
               if (card.dataset.cpu === 'true') show = true;
+            } else if (filter === 'spectator') {
+              if (card.dataset.spectator === 'true') show = true;
             } else {
               if (cat.id === filter) show = true;
             }
