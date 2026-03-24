@@ -926,8 +926,9 @@ function renderRevealPhase(){
   }).join(''):'<div id="reveal-result"></div>';
 
   return`<div class="screen">
-  <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
-    <button class="rule-btn" onclick="if(confirm('ゲームを終了して一覧に戻りますか？')) location.href='../'" style="font-size:11px;padding:3px 10px">🚪 退出</button>
+  <div style="display:flex;justify-content:flex-end;margin-bottom:8px;gap:8px;">
+    <button class="rule-btn" onclick="openRuleModal()" style="font-size:11px;padding:3px 10px">📖 ルール</button>
+    <button class="rule-btn" onclick="if(confirm('本当に退室しますか？')) window.leaveRoom()" style="font-size:11px;padding:3px 10px">🚪 退室</button>
   </div>
   <div class="game-title" style="font-size:28px">透視フェーズ</div>
   <div class="game-sub">— 5ラウンド終了 —</div>
@@ -1014,7 +1015,7 @@ function renderWaiting(){
   </div>
   <div style="text-align:center;color:var(--muted);font-size:13px;letter-spacing:1px">相手の参加を待っています</div>
   <div class="waiting-anim"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
-  <button class="btn btn-secondary" style="margin-top:2rem" onclick="if(confirm('ゲームを終了して一覧に戻りますか？')) location.href='../'">🚪 退出する</button>
+  <button class="btn btn-secondary" style="margin-top:2rem" onclick="if(confirm('本当に退室しますか？')) window.leaveRoom()">🚪 退室する</button>
   ${renderChatUI()}
 </div>`;
 }
@@ -1157,8 +1158,9 @@ function renderGame(){
   const badgeHtml=badges.length?`<div style="text-align:center;margin-bottom:.4rem">${badges.map(b=>`<span style="font-size:10px;background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:1px 6px;color:var(--muted);margin:0 2px">${b}</span>`).join('')}</div>`:'';
 
   return`<div class="screen">
-  <div style="display:flex;justify-content:flex-end;margin-bottom:8px;">
-    <button class="rule-btn" onclick="if(confirm('ゲームを終了して一覧に戻りますか？')) location.href='../'" style="font-size:11px;padding:3px 10px">🚪 退出</button>
+  <div style="display:flex;justify-content:flex-end;margin-bottom:8px;gap:8px;">
+    <button class="rule-btn" onclick="openRuleModal()" style="font-size:11px;padding:3px 10px">📖 ルール</button>
+    <button class="rule-btn" onclick="if(confirm('本当に退室しますか？')) window.leaveRoom()" style="font-size:11px;padding:3px 10px">🚪 退室</button>
   </div>
   <div class="score-bar">
     <div class="score-side"><div class="score-name">${myName||'あなた'}</div><div class="score-num">${myScore}</div><div class="score-wins">勝利数</div></div>
@@ -1282,6 +1284,21 @@ function copyText(text){
 }
 function openRuleModal(){document.getElementById('rule-modal').style.display='block';document.body.style.overflow='hidden';}
 function closeRuleModal(){document.getElementById('rule-modal').style.display='none';document.body.style.overflow='';}
+
+window.leaveRoom = async function() {
+  if (state.roomId) {
+    if (state.roomListener) off(ref(db, `games/ncg/${state.roomId}`));
+    const room = await getRoom(state.roomId);
+    if (room) {
+      if (state.playerNum === 1) {
+        await set(ref(db, `games/ncg/${state.roomId}`), null);
+      } else {
+        await updateRoom(state.roomId, { status: 'finished', player2_id: null });
+      }
+    }
+  }
+  location.href = '../';
+};
 
 // エクスポート（type="module" 内の関数・変数をHTMLのonclickから呼べるようにする）
 window.state = state;

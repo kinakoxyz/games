@@ -11,7 +11,8 @@
    * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: 'Noto Sans JP', sans-serif;
-    background: #0e0e18;
+    background-color: #0b0b14;
+    background-image: radial-gradient(circle at 50% 0%, #1e1e36 0%, transparent 60%);
     color: #f0f0f0;
     min-height: 100vh;
     display: flex;
@@ -59,8 +60,9 @@
     gap: 16px;
   }
   .game-card {
-    background: linear-gradient(145deg, #1a1a2e 0%, #161625 100%);
-    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255, 255, 255, 0.02);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 16px;
     padding: 24px 20px;
     text-decoration: none;
@@ -68,10 +70,8 @@
     transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
     display: flex;
     flex-direction: column;
-    gap: 8px;
     position: relative;
     overflow: hidden;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
   }
   .game-card::before {
     content: '';
@@ -87,52 +87,61 @@
     z-index: 1;
   }
   .game-card:hover {
-    border-color: rgba(255,215,0,0.5);
+    border-color: rgba(255, 215, 0, 0.4);
     transform: translateY(-6px);
-    box-shadow: 0 12px 24px rgba(0,0,0,0.4), 0 0 15px rgba(255,215,0,0.15);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(255, 215, 0, 0.05);
   }
   .game-card:hover::before {
     opacity: 1;
   }
-  .game-icon {
-    font-size: 42px;
-    margin-bottom: 4px;
-    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.3));
-    transition: transform 0.3s ease;
+  .game-icon-wrapper {
+    width: 56px; height: 56px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 16px;
+    transition: all 0.3s ease;
   }
-  .game-card:hover .game-icon {
+  .game-card:hover .game-icon-wrapper {
     transform: scale(1.1) rotate(-5deg);
+  }
+  .game-icon {
+    font-size: 32px;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
   }
   .game-title {
     font-family: 'Black Han Sans', sans-serif;
     font-size: 20px;
-    color: #ffd700;
+    color: #fff;
     letter-spacing: 1px;
-    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    margin-bottom: 8px;
+    transition: color 0.3s ease;
+  }
+  .game-card:hover .game-title {
+    color: #ffd700;
   }
   .game-desc {
     font-size: 13px;
     color: #aaa;
     line-height: 1.6;
     flex-grow: 1;
+    margin-bottom: 20px;
+  }
+  .game-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
   }
   .game-tag {
-    display: inline-block;
     font-size: 11px;
     padding: 4px 10px;
-    border-radius: 20px;
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.06);
     color: #bbb;
-    margin-top: 8px;
-    width: fit-content;
     font-weight: 500;
     transition: all 0.3s ease;
   }
   .game-card:hover .game-tag {
-    background: rgba(255,215,0,0.1);
+    background: rgba(255, 215, 0, 0.1);
     color: #ffd700;
-    border-color: rgba(255,215,0,0.3);
   }
   .filter-container {
     display: flex;
@@ -203,32 +212,43 @@
    </h2>
    <div class="games">
     <a class="game-card" href="./number-card-game/">
-     <span class="game-icon">
-      🔢
-     </span>
-     <span class="game-title">
+     <div class="game-icon-wrapper">
+      <span class="game-icon">
+       🔢
+      </span>
+     </div>
+     <div class="game-title">
       NUMBER CARD GAME
-     </span>
-     <span class="game-desc">
+     </div>
+     <div class="game-desc">
       1〜9のカードで戦う心理戦。相手の色の残り枚数だけを手がかりに、先に5勝を目指す推理カードゲーム。
-     </span>
-     <span class="game-tag">
-      2人 / オンライン対戦
-     </span>
+     </div>
+     <div class="game-tags">
+      <span class="game-tag">
+       👥 2人
+      </span>
+     </div>
     </a>
     <a class="game-card" data-cpu="true" href="./18/">
-     <span class="game-icon">
-      ✌️
-     </span>
-     <span class="game-title">
+     <div class="game-icon-wrapper">
+      <span class="game-icon">
+       ✌️
+      </span>
+     </div>
+     <div class="game-title">
       18
-     </span>
-     <span class="game-desc">
+     </div>
+     <div class="game-desc">
       合計18本の指で10回のじゃんけんを行う心理戦。計画的に指を消費し、勝利を目指す。
-     </span>
-     <span class="game-tag">
-      2人 / オンライン・CPU対戦
-     </span>
+     </div>
+     <div class="game-tags">
+      <span class="game-tag">
+       👥 2人
+      </span>
+      <span class="game-tag">
+       🤖 CPU
+      </span>
+     </div>
     </a>
    </div>
   </div>
@@ -238,32 +258,46 @@
    </h2>
    <div class="games">
     <a class="game-card" data-cpu="true" href="./hit-and-blow/">
-     <span class="game-icon">
-      🎯
-     </span>
-     <span class="game-title">
+     <div class="game-icon-wrapper">
+      <span class="game-icon">
+       🎯
+      </span>
+     </div>
+     <div class="game-title">
       HIT &amp; BLOW
-     </span>
-     <span class="game-desc">
+     </div>
+     <div class="game-desc">
       色の組み合わせを、論理的に推測して当てるオンライン推理ゲーム。協力モードは最大4人で遊べます。
-     </span>
-     <span class="game-tag">
-      1〜4人 / オンライン・CPU対戦
-     </span>
+     </div>
+     <div class="game-tags">
+      <span class="game-tag">
+       👥 1〜4人
+      </span>
+      <span class="game-tag">
+       🤖 CPU
+      </span>
+     </div>
     </a>
     <a class="game-card" href="./reaction/">
-     <span class="game-icon">
-      ⚡
-     </span>
-     <span class="game-title">
+     <div class="game-icon-wrapper">
+      <span class="game-icon">
+       ⚡
+      </span>
+     </div>
+     <div class="game-title">
       REACTION
-     </span>
-     <span class="game-desc">
+     </div>
+     <div class="game-desc">
       画面が緑になった瞬間にタップ！純粋な反射神経とスピードを競う早押し対戦ゲーム。
-     </span>
-     <span class="game-tag">
-      2〜10人 / オンライン対戦 / 早押し
-     </span>
+     </div>
+     <div class="game-tags">
+      <span class="game-tag">
+       👥 2〜10人
+      </span>
+      <span class="game-tag">
+       ⚡ 早押し
+      </span>
+     </div>
     </a>
    </div>
   </div>

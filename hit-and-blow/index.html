@@ -803,7 +803,7 @@ function renderWaiting(state) {
           ${isHost && canStart ? `<button class="btn btn-primary btn-full" onclick="window._startGame()">START DECRYPTION</button>` : ""}
           ${!canStart ? `<p style="text-align:center;font-size:12px;color:var(--text-muted);"><span class="spinner"></span>${state.mode==='coop' ? 'プレイヤーの参加を待機中' : '対戦相手の参加を待機中（2人専用）'}</p>` : ""}
           ${canStart && !isHost ? `<p style="text-align:center;font-size:12px;color:var(--text-muted);"><span class="spinner"></span>ホストの開始操作を待っています</p>` : ""}
-          <button class="btn btn-ghost btn-full" style="margin-top:12px;" onclick="if(confirm('ゲームを終了して一覧に戻りますか？')) location.href='../'">🚪 退出する</button>
+          <button class="btn btn-ghost btn-full" style="margin-top:12px;" onclick="if(confirm('本当に退室しますか？')) window._leaveRoom()">🚪 退室する</button>
         </div>
       </div>
       ${renderChatUI(state)}
@@ -1192,7 +1192,8 @@ function renderGameVs(state) {
         <div class="turn-ind"><div class="tdot"></div><span>TURN ${Math.min(state.turn, 8)} / 8</span></div>
         <div style="display:flex; gap:8px;">
           ${state.phase === 'ended' ? `<button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;color:var(--primary);border-color:var(--primary);" onclick="window._forceRender=true; window._toggleResultModal(true)">🏆 結果</button>` : ""}
-          <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;" onclick="window._showRulebook()">📖</button>
+          <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;" onclick="window._showRulebook()">📖 ルール</button>
+          <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;" onclick="if(confirm('本当に退室しますか？')) window._leaveRoom()">🚪 退室</button>
         </div>
       </div>
 
@@ -1281,7 +1282,8 @@ function renderGameCoop(state) {
         <div class="turn-ind"><div class="tdot"></div><span>TURN ${Math.min(state.turn, 16)} / 16</span></div>
         <div style="display:flex; gap:8px;">
           ${state.phase === 'ended' ? `<button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;color:var(--primary);border-color:var(--primary);" onclick="window._forceRender=true; window._toggleResultModal(true)">🏆 結果</button>` : ""}
-          <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;" onclick="window._showRulebook()">📖</button>
+          <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;" onclick="window._showRulebook()">📖 ルール</button>
+          <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;" onclick="if(confirm('本当に退室しますか？')) window._leaveRoom()">🚪 退室</button>
         </div>
       </div>
 
@@ -1573,6 +1575,25 @@ window._showRulebook = function() {
     </div>
   `;
   document.body.appendChild(overlay);
+};
+
+window._leaveRoom = async function() {
+  if (roomCode) {
+    if (roomListener) off(ref(db, `games/hb/${roomCode}`));
+    const snap = await get(ref(db, `games/hb/${roomCode}`));
+    if (snap.exists()) {
+      const st = snap.val();
+      if (myPlayerIndex === 0) {
+        await set(ref(db, `games/hb/${roomCode}`), null);
+      } else {
+        if (st.players) {
+          st.players.splice(myPlayerIndex, 1);
+          await update(ref(db, `games/hb/${roomCode}`), { players: st.players });
+        }
+      }
+    }
+  }
+  location.href = '../';
 };
 
 // 旧 _setCpuLevel（互換性のためスタブ）

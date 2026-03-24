@@ -405,7 +405,7 @@ function renderWaiting(state) {
           ${isHost && canStart ? `<button class="btn btn-primary btn-full" onclick="window._startGame()">> EXECUTE_START</button>` : ""}
           ${!canStart ? `<p style="text-align:center;font-size:12px;color:var(--text-muted)"><span class="spinner"></span>相手の入室を待機中</p>` : ""}
           ${canStart && !isHost ? `<p style="text-align:center;font-size:12px;color:var(--text-muted)"><span class="spinner"></span>ホストの開始操作を待っています</p>` : ""}
-          <button class="btn btn-ghost btn-full" style="margin-top:16px" onclick="if(confirm('ゲームを終了して一覧に戻りますか？')) location.href='../'">[🚪] DISCONNECT</button>
+          <button class="btn btn-ghost btn-full" style="margin-top:16px" onclick="if(confirm('本当に退室しますか？')) window._leaveRoom()">[🚪] DISCONNECT</button>
         </div>
       </div>
       ${renderChatUI(state)}
@@ -459,8 +459,9 @@ function renderGame(state) {
       <div class="header-bar">
         <span style="font-family:'Black Han Sans'; font-size:20px; color:var(--neon-cyan); text-shadow:0 0 5px var(--neon-cyan);">18</span>
         <div style="display:flex;gap:8px;">
-          <button class="btn btn-ghost" style="padding:6px 12px;font-size:11px" onclick="window._showRulebook()">[📖] RULE</button>
-          <button class="btn btn-ghost" style="padding:6px 12px;font-size:11px" onclick="if(confirm('ゲームを終了して一覧に戻りますか？')) location.href='../'">[🚪] QUIT</button>
+          <button class="btn btn-ghost" style="padding:6px 12px;font-size:11px" onclick="window._showRulebook()">📖 ルール</button>
+          <button class="btn btn-ghost" style="padding:6px 12px;font-size:11px" onclick="if(confirm('本当に退室しますか？')) window._leaveRoom()">🚪 退室</button>
+          <button class="btn btn-ghost" style="padding:6px 12px;font-size:11px" onclick="if(confirm('本当に退室しますか？')) window._leaveRoom()">🚪 退室</button>
         </div>
       </div>
       
@@ -549,8 +550,8 @@ function renderReveal(state) {
     <div class="screen">
       <div class="header-bar" style="justify-content:flex-end;">
         <div style="display:flex;gap:8px;">
-          <button class="btn btn-ghost" style="padding:6px 12px;font-size:11px" onclick="window._showRulebook()">[📖] RULE</button>
-          <button class="btn btn-ghost" style="padding:6px 12px;font-size:11px" onclick="if(confirm('ゲームを終了して一覧に戻りますか？')) location.href='../'">[🚪] QUIT</button>
+          <button class="btn btn-ghost" style="padding:6px 12px;font-size:11px" onclick="window._showRulebook()">📖 ルール</button>
+          <button class="btn btn-ghost" style="padding:6px 12px;font-size:11px" onclick="if(confirm('本当に退室しますか？')) location.href='../'">🚪 退室</button>
         </div>
       </div>
       <div class="card" style="text-align:center; padding: 32px 16px;">
@@ -806,6 +807,24 @@ window._showRulebook = function() {
   document.body.appendChild(overlay);
 };
 
+window._leaveRoom = async function() {
+  if (roomCode) {
+    if (roomListener) off(ref(db, `games/rooms18/${roomCode}`));
+    const snap = await get(ref(db, `games/rooms18/${roomCode}`));
+    if (snap.exists()) {
+      const st = snap.val();
+      if (myPlayerIndex === 0) {
+        await set(ref(db, `games/rooms18/${roomCode}`), null);
+      } else {
+        if (st.players) {
+          st.players.splice(myPlayerIndex, 1);
+          await update(ref(db, `games/rooms18/${roomCode}`), { players: st.players });
+        }
+      }
+    }
+  }
+  location.href = '../';
+};
 </script>
 </body>
 </html>
