@@ -312,18 +312,18 @@ label{font-size:.75rem;color:var(--txt2);display:block;margin-bottom:4px;}
 <div id="modal-rule" class="moverlay hidden" onclick="closeModal('modal-rule')">
   <div class="modal" style="max-width:500px; max-height:85vh; display:flex; flex-direction:column;" onclick="event.stopPropagation()">
     <div class="mtitle">📖 ルールブック</div>
-    <div style="overflow-y:auto; padding-right:8px; margin-bottom:14px; font-size:.85rem; color:var(--txt2); line-height:1.7; text-align:left;">
+    <div style="overflow-y:auto; padding-right:8px; font-size:.85rem; color:var(--txt2); line-height:1.7; text-align:left; flex:1; min-height:0;">
       <h3 style="color:var(--gold); margin:0 0 8px; font-size:1rem; border-bottom:1px solid var(--bdr); padding-bottom:4px;">🎯 ゲームの目的</h3>
       <p style="margin-bottom:16px;">盤上に自分の石を置き、相手の石を挟んで自分の色に変えていきます。<strong>最終的に盤面にある石の数が多いプレイヤー</strong>の勝利です。</p>
 
       <h3 style="color:var(--gold); margin:0 0 8px; font-size:1rem; border-bottom:1px solid var(--bdr); padding-bottom:4px;">🕹️ 基本アクション</h3>
       <p style="margin-bottom:6px;">プレイヤーは交互に、盤面の空いているマスに石を置きます。<br>ただし、<strong>相手の石を挟める場所（縦・横・斜め）にしか置くことができません。</strong></p>
-      <div style="background:var(--sur2); border:1px solid var(--bdr); border-radius:var(--r); padding:10px; margin-bottom:16px;">
+      <div style="background:var(--sur2); border:1px solid var(--bdr); border-radius:var(--r); padding:10px; margin-bottom:8px;">
         <p style="margin-bottom:8px; color:var(--primary); font-weight:bold;">💡 パスについて</p>
         <p style="margin-bottom:0; color:var(--txt2);">もし置ける場所が一つもない場合は、自動的に「パス」となり、相手のターンが連続します。<br>両者とも置ける場所がなくなった時点でゲーム終了となります。</p>
       </div>
     </div>
-    <div class="mact" style="justify-content:center; flex-shrink:0;">
+    <div class="mact" style="justify-content:center; flex-shrink:0; margin-top:14px;">
       <button class="btn sm full" onclick="closeModal('modal-rule')">閉じる</button>
     </div>
   </div>
