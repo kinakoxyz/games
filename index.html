@@ -208,6 +208,9 @@
    <button class="filter-btn" data-filter="spectator">
     👁️ 観戦あり
    </button>
+   <button class="filter-btn" data-filter="coop">
+    🤝 協力
+   </button>
   </div>
   <div class="category fade-in" id="cat-2p">
    <h2 class="category-title">
@@ -230,6 +233,9 @@
       <span class="game-tag">
        👥 2人
       </span>
+      <span class="game-tag">
+       🎭 心理戦
+      </span>
      </div>
     </a>
     <a class="game-card" data-cpu="true" href="./18/">
@@ -251,6 +257,9 @@
       <span class="game-tag">
        🤖 CPU
       </span>
+      <span class="game-tag">
+       🎭 心理戦
+      </span>
      </div>
     </a>
     <a class="game-card" data-cpu="true" href="./clover-bouquet/">
@@ -271,6 +280,9 @@
       </span>
       <span class="game-tag">
        🤖 CPU
+      </span>
+      <span class="game-tag">
+       🎭 心理戦
       </span>
      </div>
     </a>
@@ -305,7 +317,7 @@
     👪 多人数対応
    </h2>
    <div class="games">
-    <a class="game-card" data-cpu="true" href="./hit-and-blow/">
+    <a class="game-card" data-coop="true" data-cpu="true" href="./hit-and-blow/">
      <div class="game-icon-wrapper">
       <span class="game-icon">
        🎯
@@ -323,6 +335,9 @@
       </span>
       <span class="game-tag">
        🤖 CPU
+      </span>
+      <span class="game-tag">
+       🤝 協力
       </span>
      </div>
     </a>
@@ -373,6 +388,8 @@
               if (card.dataset.cpu === 'true') show = true;
             } else if (filter === 'spectator') {
               if (card.dataset.spectator === 'true') show = true;
+            } else if (filter === 'coop') {
+              if (card.dataset.coop === 'true') show = true;
             } else {
               if (cat.id === filter) show = true;
             }
