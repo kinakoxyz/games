@@ -398,7 +398,27 @@ function onRoomUpdate(state) {
     const logBox = document.getElementById('chatLogBox');
     if (logBox) {
       const isAtBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight <= 20;
-      logBox.innerHTML = getChatLogHtml(state);
+      const msgs = state.chatMessages || [];
+      
+      if (logBox.children.length === 1 && logBox.children[0].textContent === "NO MESSAGES") {
+        logBox.innerHTML = '';
+      }
+      if (logBox.children.length > msgs.length) logBox.innerHTML = '';
+      
+      const currentCount = logBox.children.length;
+      for (let i = currentCount; i < msgs.length; i++) {
+        const m = msgs[i];
+        const isMe = m.senderIndex === myPlayerIndex;
+        const div = document.createElement('div');
+        div.style.textAlign = isMe ? 'right' : 'left';
+        div.innerHTML = `
+          <div style="display: inline-block; text-align: left;">
+            <div style="font-size: 10px; color: var(--text-muted); margin-bottom: 2px; text-align: ${isMe ? 'right' : 'left'};">${h(state.players[m.senderIndex].name)}</div>
+            <div style="background: ${isMe ? 'rgba(0,229,255,0.1)' : 'var(--surface2)'}; color: ${isMe ? 'var(--primary)' : 'var(--text)'}; border: 1px solid ${isMe ? 'var(--primary)' : 'var(--border)'}; padding: 6px 12px; border-radius: 8px; font-size: 12px; display: inline-block; max-width: 100%; word-break: break-all;">${h(m.text)}</div>
+          </div>`;
+        logBox.appendChild(div);
+      }
+      if (msgs.length === 0 && logBox.children.length === 0) logBox.innerHTML = '<div style="text-align:center; color:var(--text-muted); font-size:11px; margin-top: 40px; font-family:\'Orbitron\', sans-serif;">NO MESSAGES</div>';
       if (isAtBottom) logBox.scrollTop = logBox.scrollHeight;
     }
   }

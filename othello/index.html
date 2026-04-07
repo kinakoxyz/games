@@ -70,6 +70,25 @@ label{font-size:.75rem;color:var(--txt2);display:block;margin-bottom:4px;}
 .badge.me{background:var(--primary);color:#000}
 .badge.cpu{background:var(--bdr);color:var(--txt2)}
 .badge.spec{background:var(--sur2);border:1px solid var(--bdr);color:var(--txt2)}
+.panel-subtitle {
+    font-size: .9rem;
+    font-weight: bold;
+    color: var(--txt2);
+    margin-top: 16px;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--bdr);
+}
+#player-slots { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.p-slot {
+    display: flex; align-items: center; gap: 10px; background: var(--sur2);
+    border: 1px solid var(--bdr); border-radius: var(--r);
+    padding: 10px; font-size: .9rem; min-height: 56px;
+}
+.p-slot.empty {
+    background: repeating-linear-gradient(-45deg, var(--sur2), var(--sur2) 10px, #333 10px, #333 11px);
+    justify-content: center;
+}
 
 /* ===== ゲーム画面 ===== */
 #scr-game{position:fixed;inset:0;display:grid;grid-template-rows:50px 1fr;overflow:hidden;z-index:1}
@@ -213,7 +232,11 @@ label{font-size:.75rem;color:var(--txt2);display:block;margin-bottom:4px;}
         <div id="disp-rid" style="font-size:1.8rem;letter-spacing:4px;color:var(--gold);font-weight:bold;">----</div></div>
       <button class="btn sec sm" style="margin-left:auto" onclick="navigator.clipboard.writeText(roomId).then(()=>toast('コピーしました'))">コピー</button>
     </div>
-    <ul class="plist" id="rplist"></ul>
+    <div class="panel-subtitle">⚔️ プレイヤー</div>
+    <div id="player-slots"></div>
+
+    <div class="panel-subtitle">👁️ 観戦者</div>
+    <ul class="plist" id="spectator-list"></ul>
     
     <div id="hctrl" class="hidden" style="margin-top:20px; border-top:1px solid var(--bdr); padding-top:16px;">
       <div class="fg">
@@ -223,10 +246,6 @@ label{font-size:.75rem;color:var(--txt2);display:block;margin-bottom:4px;}
           <button id="btn-cpu-normal" class="btn sec sm" style="flex:1;" onclick="changeCpuLevel('normal')">普通</button>
           <button id="btn-cpu-strong" class="btn sm" style="flex:1;" onclick="changeCpuLevel('strong')">強い</button>
         </div>
-      </div>
-      <div style="display:flex; gap:8px; margin-bottom:12px;">
-        <button class="btn sec" style="flex:1;" onclick="addCpu()">🤖 CPUを追加</button>
-        <button class="btn sec" style="flex:1;" onclick="removeCpu()">👋 CPUを削除</button>
       </div>
       <button class="btn lg full" id="start-btn" onclick="startGame()" disabled>ゲーム開始（2人必要）</button>
     </div>
@@ -413,11 +432,9 @@ async function addCpu() {
   await db.ref(`games/othello/${roomId}/players/${cpuUid}`).set({ name: `CPU`, uid: cpuUid, isCpu: true, isSpectator: false });
 }
 
-async function removeCpu() {
-  if(!isHost || !gs || !gs.players) return;
-  const cpuKeys = Object.keys(gs.players).filter(uid => gs.players[uid].isCpu);
-  if(cpuKeys.length === 0){ toast("削除するCPUがいません"); return; }
-  await db.ref(`games/othello/${roomId}/players/${cpuKeys[cpuKeys.length-1]}`).remove();
+async function removeCpu(cpuUid) {
+  if(!isHost || !gs || !gs.players || !cpuUid) return;
+  await db.ref(`games/othello/${roomId}/players/${cpuUid}`).remove();
 }
 
 function enterRoom(){
@@ -429,19 +446,52 @@ function enterRoom(){
   db.ref(`games/othello/${roomId}`).on("value", snap => {
     if(!snap.exists()){ toast("解散されました"); leaveRoom(true); return; }
     gs = snap.val();
-    const list = document.getElementById("rplist");
-    list.innerHTML = "";
-    Object.values(gs.players||{}).forEach(p => {
-      list.innerHTML += `<li class="pitem ${p.uid===myUid?'me':''}"><div style="font-weight:bold">${p.name}</div>
-        ${p.uid===gs.host?'<span class="badge host">HOST</span>':''}
-        ${p.uid===myUid?'<span class="badge me">YOU</span>':''}
-        ${p.isCpu?'<span class="badge cpu">CPU</span>':''}
-        ${p.isSpectator?'<span class="badge spec">観戦</span>':''}</li>`;
-    });
-    const pCount = Object.values(gs.players||{}).filter(p => !p.isSpectator).length;
+
+    const allPlayers = Object.values(gs.players || {});
+    const gamePlayers = allPlayers.filter(p => !p.isSpectator);
+    const spectators = allPlayers.filter(p => p.isSpectator);
+    const me = gs.players[myUid];
+
+    const playerSlotsEl = document.getElementById("player-slots");
+    playerSlotsEl.innerHTML = "";
+
+    for (let i = 0; i < 2; i++) {
+        const player = gamePlayers[i];
+        const slotEl = document.createElement("div");
+        slotEl.className = "p-slot";
+
+        if (player) {
+            slotEl.innerHTML = `<div style="font-weight:bold; flex:1;">${player.name}</div>`;
+            if (player.uid === gs.host) slotEl.innerHTML += `<span class="badge host">HOST</span>`;
+            if (player.uid === myUid) slotEl.innerHTML += `<span class="badge me">YOU</span>`;
+            if (player.isCpu) slotEl.innerHTML += `<span class="badge cpu">CPU</span>`;
+
+            if (player.uid === myUid) {
+                slotEl.innerHTML += `<button class="btn sec sm" style="margin-left:auto;" onclick="toggleRole(true)">観戦へ</button>`;
+            } else if (isHost && player.isCpu) {
+                slotEl.innerHTML += `<button class="btn sec sm" style="margin-left:auto;" onclick="removeCpu('${player.uid}')">削除</button>`;
+            }
+        } else {
+            slotEl.classList.add("empty");
+            let actions = "";
+            if (me && me.isSpectator) {
+                actions += `<button class="btn sm" onclick="toggleRole(false)">プレイヤー参加</button>`;
+            }
+            if (isHost) {
+                actions += `<button class="btn sec sm" onclick="addCpu()">🤖 CPU追加</button>`;
+            }
+            if (actions === "") {
+                actions = `<div style="color:var(--txt3); font-size:0.8rem;">空きスロット</div>`;
+            }
+            slotEl.innerHTML = `<div style="display:flex; gap:8px;">${actions}</div>`;
+        }
+        playerSlotsEl.appendChild(slotEl);
+    }
+
+    const pCount = gamePlayers.length;
     const btn = document.getElementById("start-btn");
     if(btn) btn.disabled = (pCount !== 2);
-    
+
     const level = gs.cpuLevel || "strong";
     ["weak", "normal", "strong"].forEach(lvl => {
       const b = document.getElementById("btn-cpu-" + lvl);
@@ -456,9 +506,29 @@ function enterRoom(){
         if (lastMsg.actorUid !== myUid && gs.phase === "waiting") toast(lastMsg.text);
       }
     }
+
+    const spectatorListEl = document.getElementById("spectator-list");
+    spectatorListEl.innerHTML = "";
+    if (spectators.length === 0) {
+        spectatorListEl.innerHTML = `<li class="pitem" style="justify-content:center; color:var(--txt3); font-size:0.8rem;">（観戦者はいません）</li>`;
+    } else {
+        spectators.forEach(p => {
+            spectatorListEl.innerHTML += `<li class="pitem ${p.uid===myUid?'me':''}"><div style="font-weight:bold">${p.name}</div>
+                ${p.uid===gs.host?'<span class="badge host">HOST</span>':''}
+                ${p.uid===myUid?'<span class="badge me">YOU</span>':''}
+            </li>`;
+        });
+    }
+
     renderRoomChat(msgs);
     if(gs.phase !== "waiting"){ db.ref(`games/othello/${roomId}`).off(); enterGame(); }
   });
+}
+
+async function toggleRole(spectate) {
+    if (!gs || !myUid) return;
+    if (!spectate && Object.values(gs.players).filter(p => !p.isSpectator).length >= 2) { toast("プレイヤー枠が満員です"); return; }
+    await db.ref(`games/othello/${roomId}/players/${myUid}`).update({ isSpectator: spectate });
 }
 
 function changeCpuLevel(level) {
@@ -470,8 +540,15 @@ function renderRoomChat(msgs) {
   const scroll = document.getElementById("r-lscroll");
   if (!scroll) return;
   const isAtBottom = scroll.scrollTop + scroll.clientHeight >= scroll.scrollHeight - 10;
-  scroll.innerHTML = "";
-  msgs.forEach(m => { const d = document.createElement("div"); d.className = "lentry chat"; d.textContent = m.text; scroll.appendChild(d); });
+  
+  if (scroll.children.length > msgs.length) scroll.innerHTML = "";
+  
+  const currentCount = scroll.children.length;
+  for (let i = currentCount; i < msgs.length; i++) {
+    const m = msgs[i];
+    const d = document.createElement("div"); d.className = "lentry chat"; d.textContent = m.text; scroll.appendChild(d);
+  }
+  
   if(isAtBottom || scroll.children.length <= 1) scroll.scrollTop = scroll.scrollHeight;
 }
 
@@ -625,15 +702,20 @@ function renderGame(){
 
   const cscroll = document.getElementById("cscroll");
   const isChatAtBottom = cscroll.scrollTop + cscroll.clientHeight >= cscroll.scrollHeight - 10;
-  cscroll.innerHTML = "";
   let combined = [...(gs.logs||[]), ...(gs.chatMessages||[])];
   combined.sort((a,b) => (a.ts || 0) - (b.ts || 0));
-  combined.forEach(m => {
+  
+  if (cscroll.children.length > combined.length) cscroll.innerHTML = "";
+  
+  const currentCount = cscroll.children.length;
+  for (let i = currentCount; i < combined.length; i++) {
+    const m = combined[i];
     const d = document.createElement("div");
     d.className = m.type === "sys" ? "lentry sys" : "lentry chat";
     d.textContent = m.text;
     cscroll.appendChild(d);
-  });
+  }
+  
   if(isChatAtBottom) cscroll.scrollTop = cscroll.scrollHeight;
 
   if(gs.phase === "ended"){

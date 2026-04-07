@@ -4,414 +4,651 @@
   <meta charset="utf-8"/>
   <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
   <title>
-   Games
+   Games Portal
   </title>
   <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&amp;family=Noto+Sans+JP:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
   <style>
-   * { box-sizing: border-box; margin: 0; padding: 0; }
+   :root {
+    --accent-gold: #ffd700;
+    --accent-orange: #ff6b35;
+    --bg-dark: #0b0b14;
+    --card-bg: rgba(255, 255, 255, 0.02);
+    --glass-border: rgba(255, 255, 255, 0.06);
+  }
+
+  html { scroll-behavior: smooth; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  
   body {
     font-family: 'Noto Sans JP', sans-serif;
-    background-color: #0b0b14;
+    background-color: var(--bg-dark);
     background-image: radial-gradient(circle at 50% 0%, #1e1e36 0%, transparent 60%);
     color: #f0f0f0;
     min-height: 100vh;
+    padding: 80px 16px 32px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: flex-start;
-    padding: 64px 16px 32px;
   }
-  h1 {
-    font-family: 'Black Han Sans', sans-serif;
-    font-size: 32px;
-    letter-spacing: 4px;
-    background: linear-gradient(135deg, #ffd700, #ff6b35);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    margin-bottom: 8px;
-    text-align: center;
+
+  /* ===== Sidebar (Full List) ===== */
+  #side-nav {
+    position: fixed; top: 0; left: -280px; width: 280px; height: 100%;
+    background: #151525; z-index: 1000; transition: 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+    padding: 80px 20px; overflow-y: auto; scrollbar-width: thin;
+    box-shadow: 10px 0 30px rgba(0,0,0,0.5);
   }
-  .subtitle {
-    font-size: 12px;
-    color: #555;
-    letter-spacing: 2px;
-    margin-bottom: 48px;
-    text-align: center;
+  body.nav-open #side-nav { left: 0; }
+  #menu-toggle {
+    position: fixed; top: 20px; left: 20px; width: 44px; height: 44px;
+    background: rgba(30, 30, 54, 0.8); border: 1px solid var(--glass-border);
+    border-radius: 50%; z-index: 1001; cursor: pointer; display: flex; flex-direction: column;
+    justify-content: center; align-items: center; gap: 5px; backdrop-filter: blur(5px);
   }
-  .category {
-    width: 100%;
-    max-width: 600px;
-    margin-bottom: 40px;
+  #menu-toggle span { display: block; width: 20px; height: 2px; background: #fff; transition: 0.3s; }
+  body.nav-open #menu-toggle span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+  body.nav-open #menu-toggle span:nth-child(2) { opacity: 0; }
+  body.nav-open #menu-toggle span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+  #nav-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+    z-index: 999; opacity: 0; pointer-events: none; transition: 0.4s;
   }
-  .category-title {
-    font-family: 'Black Han Sans', sans-serif;
-    font-size: 22px;
-    color: #e0e0e0;
-    letter-spacing: 2px;
-    margin-bottom: 16px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-  }
-  .games {
-    display: grid;
-    /* auto-fit を auto-fill に変更 */
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 16px;
-  }
+  body.nav-open #nav-overlay { opacity: 1; pointer-events: auto; }
+
+  .nav-cat-title { font-family: 'Black Han Sans'; color: var(--accent-gold); margin: 20px 0 10px; font-size: 18px; border-bottom: 1px solid var(--glass-border); padding-bottom: 5px; }
+  .nav-list { list-style: none; margin-bottom: 20px; }
+  .nav-list a { color: #ccc; text-decoration: none; font-size: 13px; display: block; padding: 6px 0; transition: 0.2s; }
+  .nav-list a:hover { color: var(--accent-gold); padding-left: 5px; }
+
+  /* ===== Controls & Layout ===== */
+  header { text-align: center; margin-bottom: 32px; }
+  h1 { font-family: 'Black Han Sans'; font-size: clamp(32px, 8vw, 48px); background: linear-gradient(135deg, var(--accent-gold), var(--accent-orange)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 8px; letter-spacing: 4px; }
+  .subtitle { font-size: 12px; color: #666; letter-spacing: 2px; }
+
+  .controls { width: 100%; max-width: 800px; margin-bottom: 48px; display: flex; flex-direction: column; gap: 16px; }
+  #search-input { width: 100%; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 12px; padding: 14px 20px; color: #fff; font-size: 16px; outline: none; }
+  .filter-container { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .filter-btn { background: rgba(255, 255, 255, 0.05); border: 1px solid var(--glass-border); color: #ccc; padding: 6px 16px; border-radius: 20px; font-size: 13px; cursor: pointer; transition: 0.3s; }
+  .filter-btn.active { background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,107,53,0.2)); border-color: var(--accent-gold); color: var(--accent-gold); }
+
+  /* ===== Cards ===== */
+  .category { width: 100%; max-width: 1000px; margin-bottom: 64px; }
+  .category-title { font-family: 'Black Han Sans'; font-size: 22px; color: #e0e0e0; margin-bottom: 24px; padding-bottom: 8px; border-bottom: 1px solid var(--glass-border); }
+  .games-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+
   .game-card {
-    background: rgba(255, 255, 255, 0.02);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 16px;
-    padding: 24px 20px;
-    text-decoration: none;
-    color: inherit;
-    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-    display: flex;
-    flex-direction: column;
-    position: relative;
-    overflow: hidden;
+    background: var(--card-bg); backdrop-filter: blur(10px); border: 1px solid var(--glass-border); border-radius: 20px; padding: 24px; text-decoration: none; color: inherit; display: flex; flex-direction: column; position: relative; overflow: hidden; transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   }
   .game-card::before {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: linear-gradient(135deg, rgba(255,215,0,0.08), rgba(255,107,53,0.08));
-    opacity: 0;
-    transition: opacity 0.3s ease;
-    z-index: 0;
+    content: ''; position: absolute; inset: 0; background: radial-gradient(circle at var(--x, 50%) var(--y, 50%), rgba(255,215,0,0.15) 0%, transparent 50%); opacity: 0; transition: opacity 0.4s; z-index: 0;
   }
-  .game-card > * {
-    position: relative;
-    z-index: 1;
-  }
-  .game-card:hover {
-    border-color: rgba(255, 215, 0, 0.4);
-    transform: translateY(-6px);
-    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(255, 215, 0, 0.05);
-  }
-  .game-card:hover::before {
-    opacity: 1;
-  }
-  .game-icon-wrapper {
-    width: 56px; height: 56px;
-    display: flex; align-items: center; justify-content: center;
-    margin-bottom: 16px;
-    transition: all 0.3s ease;
-  }
-  .game-card:hover .game-icon-wrapper {
-    transform: scale(1.1) rotate(-5deg);
-  }
-  .game-icon {
-    font-size: 32px;
-    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
-  }
-  .game-title {
-    font-family: 'Black Han Sans', sans-serif;
-    font-size: 20px;
-    color: #fff;
-    letter-spacing: 1px;
-    margin-bottom: 8px;
-    transition: color 0.3s ease;
-  }
-  .game-card:hover .game-title {
-    color: #ffd700;
-  }
-  .game-desc {
-    font-size: 13px;
-    color: #aaa;
-    line-height: 1.6;
-    flex-grow: 1;
-    margin-bottom: 20px;
-  }
-  .game-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-  .game-tag {
-    font-size: 11px;
-    padding: 4px 10px;
-    border-radius: 6px;
-    background: rgba(255, 255, 255, 0.06);
-    color: #bbb;
-    font-weight: 500;
-    transition: all 0.3s ease;
-  }
-  .game-card:hover .game-tag {
-    background: rgba(255, 215, 0, 0.1);
-    color: #ffd700;
-  }
-  .filter-container {
-    display: flex;
-    gap: 12px;
-    margin-bottom: 32px;
-    justify-content: center;
-    flex-wrap: wrap;
-  }
-  .filter-btn {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    color: #e0e0e0;
-    padding: 8px 16px;
-    border-radius: 24px;
-    font-family: 'Noto Sans JP', sans-serif;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.3s ease;
-  }
-  .filter-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
-  }
-  .filter-btn.active {
-    background: linear-gradient(135deg, rgba(255,215,0,0.2), rgba(255,107,53,0.2));
-    border-color: rgba(255,215,0,0.5);
-    color: #ffd700;
-  }
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-      transform: translateY(10px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-  .fade-in {
-    animation: fadeIn 0.4s ease forwards;
-  }
+  .game-card:hover { transform: translateY(-8px); border-color: rgba(255,215,0,0.3); box-shadow: 0 15px 35px rgba(0,0,0,0.4); }
+  .game-card:hover::before { opacity: 1; }
+  .game-card > * { position: relative; z-index: 2; }
+  
+  .game-icon { font-size: 36px; margin-bottom: 12px; display: block; }
+  .game-title { font-family: 'Black Han Sans'; font-size: 19px; margin-bottom: 8px; color: #fff; }
+  .game-desc { font-size: 13px; color: #aaa; line-height: 1.6; margin-bottom: 16px; flex-grow: 1; }
+  .game-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .game-tag { font-size: 10px; background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 6px; color: #888; border: 1px solid rgba(255,255,255,0.03); }
+
+  .pin-btn { position: absolute; top: 16px; right: 16px; background: none; border: none; color: rgba(255,255,255,0.1); font-size: 22px; cursor: pointer; transition: 0.3s; z-index: 10; }
+  .pin-btn.active { color: var(--accent-gold); text-shadow: 0 0 10px rgba(255,215,0,0.5); }
+
+  .hidden { display: none !important; }
+  body.nav-open { overflow: hidden; }
   </style>
  </head>
  <body>
-  <h1>
-   GAMES
-  </h1>
-  <p class="subtitle">
-   非公式ファンメイド
-  </p>
-  <div class="filter-container">
-   <button class="filter-btn active" data-filter="all">
-    全て
-   </button>
-   <button class="filter-btn" data-filter="cat-2p">
-    👥 2人用
-   </button>
-   <button class="filter-btn" data-filter="cat-multi">
-    👪 多人数対応
-   </button>
-   <button class="filter-btn" data-filter="cpu">
-    🤖 CPU対戦あり
-   </button>
-   <button class="filter-btn" data-filter="spectator">
-    👁️ 観戦あり
-   </button>
-   <button class="filter-btn" data-filter="coop">
-    🤝 協力
-   </button>
+  <button id="menu-toggle">
+   <span>
+   </span>
+   <span>
+   </span>
+   <span>
+   </span>
+  </button>
+  <div id="nav-overlay">
   </div>
-  <div class="category fade-in" id="cat-2p">
+  <nav id="side-nav">
+   <h3 style="font-family:'Black Han Sans'; color:var(--accent-gold); margin-bottom:10px;">
+    ALL GAMES
+   </h3>
+   <ul class="nav-list">
+    <li>
+     <a href="./18/">
+      ✌️ 18
+     </a>
+    </li>
+    <li>
+     <a href="./aiue-battle/">
+      🅰️ AIUE BATTLE
+     </a>
+    </li>
+    <li>
+     <a href="./battle-line/">
+      ⚔️ BATTLE LINE
+     </a>
+    </li>
+    <li>
+     <a href="./blocks/">
+      🟦 BLOKUS
+     </a>
+    </li>
+    <li>
+     <a href="./blokus-duo/">
+      🟧 BLOKUS DUO
+     </a>
+    </li>
+    <li>
+     <a href="./order-overload-cafe/">
+      ☕ CAFE OVERLOAD
+     </a>
+    </li>
+    <li>
+     <a href="./city-chase/">
+      🚁 CITY CHASE
+     </a>
+    </li>
+    <li>
+     <a href="./clover-bouquet/">
+      🍀 CLOVER BOUQUET
+     </a>
+    </li>
+    <li>
+     <a href="./connect4/">
+      🔴 CONNECT 4
+     </a>
+    </li>
+    <li>
+     <a href="./coyote/">
+      🐺 COYOTE
+     </a>
+    </li>
+    <li>
+     <a href="./presidents/">
+      👑 DAIFUGO (大富豪)
+     </a>
+    </li>
+    <li>
+     <a href="./double-nine/">
+      9️⃣ DOUBLE NINE
+     </a>
+    </li>
+    <li>
+     <a href="./geister/">
+      👻 GEISTER
+     </a>
+    </li>
+    <li>
+     <a href="./gobblet/">
+      🐔 GOBBLET GOBBLERS
+     </a>
+    </li>
+    <li>
+     <a href="./hagetaka-no-ejiki/">
+      🦅 HAGETAKA NO EJIKI
+     </a>
+    </li>
+    <li>
+     <a href="./hanabi/">
+      🎆 HANABI
+     </a>
+    </li>
+    <li>
+     <a href="./hannin-ha-odoru/">
+      🕵️ HANNIN HA ODORU
+     </a>
+    </li>
+    <li>
+     <a href="./hex/">
+      ⬡ HEX
+     </a>
+    </li>
+    <li>
+     <a href="./hit-and-blow/">
+      🎯 HIT &amp; BLOW
+     </a>
+    </li>
+    <li>
+     <a href="./insider/">
+      🤫 INSIDER
+     </a>
+    </li>
+    <li>
+     <a href="./ito/">
+      🕸️ ITO
+     </a>
+    </li>
+    <li>
+     <a href="./love-letter/">
+      💌 LOVE LETTER
+     </a>
+    </li>
+    <li>
+     <a href="./maskmen/">
+      🎭 MASKMEN
+     </a>
+    </li>
+    <li>
+     <a href="./nimulien/">
+      👾 NIMULIEN
+     </a>
+    </li>
+    <li>
+     <a href="./nocca-nocca/">
+      🧊 NOCCA NOCCA
+     </a>
+    </li>
+    <li>
+     <a href="./number-card-game/">
+      🔢 NUMBER CARD GAME
+     </a>
+    </li>
+    <li>
+     <a href="./onitama/">
+      ⛩️ ONITAMA
+     </a>
+    </li>
+    <li>
+     <a href="./ostle/">
+      🕳️ OSTLE
+     </a>
+    </li>
+    <li>
+     <a href="./othello/">
+      ⚫ OTHELLO
+     </a>
+    </li>
+    <li>
+     <a href="./otrio/">
+      ⭕ OTRIO
+     </a>
+    </li>
+    <li>
+     <a href="./pentago/">
+      🔄 PENTAGO
+     </a>
+    </li>
+    <li>
+     <a href="./pentaroll/">
+      ⚪ PENTAROLL
+     </a>
+    </li>
+    <li>
+     <a href="./quarto/">
+      🧩 QUARTO
+     </a>
+    </li>
+    <li>
+     <a href="./quixo/">
+      ✖️ QUIXO
+     </a>
+    </li>
+    <li>
+     <a href="./quoridor/">
+      🏰 QUORIDOR
+     </a>
+    </li>
+    <li>
+     <a href="./reaction/">
+      ⚡ REACTION
+     </a>
+    </li>
+    <li>
+     <a href="./second-best/">
+      🥈 SECOND BEST
+     </a>
+    </li>
+    <li>
+     <a href="./skull/">
+      💀 SKULL
+     </a>
+    </li>
+    <li>
+     <a href="./splendor/">
+      💎 SPLENDOR
+     </a>
+    </li>
+    <li>
+     <a href="./squadro/">
+      ⏩ SQUADRO
+     </a>
+    </li>
+    <li>
+     <a href="./the-game/">
+      👿 THE GAME
+     </a>
+    </li>
+    <li>
+     <a href="./wata-route/">
+      🛤️ WATA ROUTE
+     </a>
+    </li>
+    <li>
+     <a href="./yabunonaka/">
+      🎋 YABU NO NAKA
+     </a>
+    </li>
+    <li>
+     <a href="./yavalath/">
+      ⬡ YAVALATH
+     </a>
+    </li>
+   </ul>
+  </nav>
+  <header>
+   <h1>
+    GAMES
+   </h1>
+   <p class="subtitle">
+    非公式ファンメイド
+   </p>
+  </header>
+  <div class="controls">
+   <input id="search-input" placeholder="ゲーム名、タグ、説明で検索..." type="text"/>
+   <div class="filter-container">
+    <button class="filter-btn active" data-filter="all">
+     全て
+    </button>
+    <button class="filter-btn" data-filter="2p">
+     👥 2人用
+    </button>
+    <button class="filter-btn" data-filter="multi">
+     👪 多人数
+    </button>
+    <button class="filter-btn" data-filter="cpu">
+     🤖 CPU
+    </button>
+    <button class="filter-btn" data-filter="chat">
+     💬 チャット
+    </button>
+    <button class="filter-btn" data-filter="spectator">
+     👁️ 観戦
+    </button>
+    <button class="filter-btn" data-filter="coop">
+     🤝 協力
+    </button>
+   </div>
+  </div>
+  <section class="category hidden" id="cat-favs">
    <h2 class="category-title">
-    👥 2人用
+    📌 お気に入り
    </h2>
-   <div class="games">
-    <a class="game-card" href="./number-card-game/">
-     <div class="game-icon-wrapper">
-      <span class="game-icon">
-       🔢
-      </span>
-     </div>
-     <div class="game-title">
-      NUMBER CARD GAME
-     </div>
-     <div class="game-desc">
-      1〜9のカードで戦う心理戦。相手の色の残り枚数だけを手がかりに、先に5勝を目指す推理カードゲーム。
-     </div>
-     <div class="game-tags">
-      <span class="game-tag">
-       👥 2人
-      </span>
-      <span class="game-tag">
-       🎭 心理戦
-      </span>
-     </div>
-    </a>
-    <a class="game-card" data-cpu="true" href="./18/">
-     <div class="game-icon-wrapper">
-      <span class="game-icon">
-       ✌️
-      </span>
-     </div>
+   <div class="games-grid" id="favs-grid">
+   </div>
+  </section>
+  <section class="category" id="all-games">
+   <div class="games-grid">
+    <a class="game-card" data-chat="true" data-cpu="true" data-id="g18" data-players="2p" href="./18/">
+     <button class="pin-btn">
+      ★
+     </button>
+     <span class="game-icon">
+      ✌️
+     </span>
      <div class="game-title">
       18
      </div>
      <div class="game-desc">
-      合計18本の指で10回のじゃんけんを行う心理戦。計画的に指を消費し、勝利を目指す。
+      合計18本の指で行う10回のじゃんけん。計画的な消費が鍵。
      </div>
      <div class="game-tags">
       <span class="game-tag">
-       👥 2人
+       2人
       </span>
       <span class="game-tag">
-       🤖 CPU
+       CPU
       </span>
       <span class="game-tag">
-       🎭 心理戦
+       心理戦
+      </span>
+      <span class="game-tag">
+       チャット
       </span>
      </div>
     </a>
-    <a class="game-card" data-cpu="true" href="./clover-bouquet/">
-     <div class="game-icon-wrapper">
-      <span class="game-icon">
-       🍀
-      </span>
-     </div>
+    <a class="game-card" data-chat="true" data-cpu="true" data-id="clover" data-players="2p" href="./clover-bouquet/">
+     <button class="pin-btn">
+      ★
+     </button>
+     <span class="game-icon">
+      🍀
+     </span>
      <div class="game-title">
       CLOVER BOUQUET
      </div>
      <div class="game-desc">
-      花冠をつくる、ちょっと意地悪なカードゲーム。相手から引いたカードと自分の手札の合計値で勝負。
+      ちょっと意地悪なカードゲーム。引いたカードと手札の合計で勝負。
      </div>
      <div class="game-tags">
       <span class="game-tag">
-       👥 2人
+       2人
       </span>
       <span class="game-tag">
-       🤖 CPU
+       CPU
       </span>
       <span class="game-tag">
-       🎭 心理戦
+       心理戦
+      </span>
+      <span class="game-tag">
+       チャット
       </span>
      </div>
     </a>
-    <a class="game-card" data-cpu="true" data-spectator="true" href="./othello/">
-     <div class="game-icon-wrapper">
-      <span class="game-icon">
-       ⚫
-      </span>
-     </div>
-     <div class="game-title">
-      OTHELLO
-     </div>
-     <div class="game-desc">
-      相手の石を挟んで自分の色に変える、定番のボードゲーム。石が反転するアニメーション付き！
-     </div>
-     <div class="game-tags">
-      <span class="game-tag">
-       👥 2人
-      </span>
-      <span class="game-tag">
-       🤖 CPU
-      </span>
-      <span class="game-tag">
-       👁️ 観戦あり
-      </span>
-     </div>
-    </a>
-   </div>
-  </div>
-  <div class="category fade-in" id="cat-multi">
-   <h2 class="category-title">
-    👪 多人数対応
-   </h2>
-   <div class="games">
-    <a class="game-card" data-coop="true" data-cpu="true" href="./hit-and-blow/">
-     <div class="game-icon-wrapper">
-      <span class="game-icon">
-       🎯
-      </span>
-     </div>
+    <a class="game-card" data-chat="true" data-coop="true" data-cpu="true" data-id="hb" data-players="multi" href="./hit-and-blow/">
+     <button class="pin-btn">
+      ★
+     </button>
+     <span class="game-icon">
+      🎯
+     </span>
      <div class="game-title">
       HIT &amp; BLOW
      </div>
      <div class="game-desc">
-      色の組み合わせを、論理的に推測して当てるオンライン推理ゲーム。協力モードは最大4人で遊べます。
+      色の組み合わせを推理する。協力モードは最大4人対応。
      </div>
      <div class="game-tags">
       <span class="game-tag">
-       👥 1〜4人
+       1〜4人
       </span>
       <span class="game-tag">
-       🤖 CPU
+       CPU
       </span>
       <span class="game-tag">
-       🤝 協力
+       協力
+      </span>
+      <span class="game-tag">
+       チャット
       </span>
      </div>
     </a>
-    <a class="game-card" href="./reaction/">
-     <div class="game-icon-wrapper">
-      <span class="game-icon">
-       ⚡
+    <a class="game-card" data-chat="true" data-id="numcard" data-players="2p" href="./number-card-game/">
+     <button class="pin-btn">
+      ★
+     </button>
+     <span class="game-icon">
+      🔢
+     </span>
+     <div class="game-title">
+      NUMBER CARD GAME
+     </div>
+     <div class="game-desc">
+      1〜9のカードで戦う心理戦。相手の残り枚数を手がかりに5勝を目指す。
+     </div>
+     <div class="game-tags">
+      <span class="game-tag">
+       2人
+      </span>
+      <span class="game-tag">
+       心理戦
+      </span>
+      <span class="game-tag">
+       チャット
       </span>
      </div>
+    </a>
+    <a class="game-card" data-chat="true" data-cpu="true" data-id="othello" data-players="2p" data-spectator="true" href="./othello/">
+     <button class="pin-btn">
+      ★
+     </button>
+     <span class="game-icon">
+      ⚫
+     </span>
+     <div class="game-title">
+      OTHELLO
+     </div>
+     <div class="game-desc">
+      相手を挟んで反転。滑らかなアニメーション搭載。
+     </div>
+     <div class="game-tags">
+      <span class="game-tag">
+       2人
+      </span>
+      <span class="game-tag">
+       CPU
+      </span>
+      <span class="game-tag">
+       観戦
+      </span>
+      <span class="game-tag">
+       チャット
+      </span>
+     </div>
+    </a>
+    <a class="game-card" data-chat="true" data-id="react" data-players="multi" href="./reaction/">
+     <button class="pin-btn">
+      ★
+     </button>
+     <span class="game-icon">
+      ⚡
+     </span>
      <div class="game-title">
       REACTION
      </div>
      <div class="game-desc">
-      画面が緑になった瞬間にタップ！純粋な反射神経とスピードを競う早押し対戦ゲーム。
+      画面が緑になった瞬間にタップ！純粋な反射神経バトル。
      </div>
      <div class="game-tags">
       <span class="game-tag">
-       👥 2〜10人
+       2〜10人
       </span>
       <span class="game-tag">
-       ⚡ 早押し
+       早押し
+      </span>
+      <span class="game-tag">
+       チャット
       </span>
      </div>
     </a>
    </div>
-  </div>
+  </section>
   <script>
-   const filterBtns = document.querySelectorAll('.filter-btn');
-    const categories = document.querySelectorAll('.category');
+   const searchInput = document.getElementById('search-input');
+    const filterBtns = document.querySelectorAll('.filter-btn');
+    const allGamesSection = document.getElementById('all-games');
+    const favsGrid = document.getElementById('favs-grid');
+    const favsSection = document.getElementById('cat-favs');
+    let favorites = JSON.parse(localStorage.getItem('game_favorites') || '[]');
 
-    filterBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        filterBtns.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
+    function filterGames() {
+      const query = searchInput.value.toLowerCase();
+      const activeFilter = document.querySelector('.filter-btn.active').dataset.filter;
 
-        const filter = btn.getAttribute('data-filter');
+      let hasVisible = false;
+      const cards = allGamesSection.querySelectorAll('.game-card');
 
-        categories.forEach(cat => {
-          cat.classList.remove('fade-in');
-          let hasVisibleCards = false;
+      cards.forEach(card => {
+        const title = card.querySelector('.game-title').textContent.toLowerCase();
+        const desc = card.querySelector('.game-desc').textContent.toLowerCase();
+        const tags = card.querySelector('.game-tags').textContent.toLowerCase();
+        
+        let matchFilter = false;
+        if (activeFilter === 'all') {
+            matchFilter = true;
+        } else if (activeFilter === '2p') {
+            matchFilter = card.dataset.players === '2p';
+        } else if (activeFilter === 'multi') {
+            matchFilter = card.dataset.players === 'multi';
+        } else if (['cpu', 'chat', 'spectator', 'coop'].includes(activeFilter)) {
+            matchFilter = card.dataset[activeFilter] === 'true';
+        }
 
-          const cards = cat.querySelectorAll('.game-card');
-          cards.forEach(card => {
-            let show = false;
-            if (filter === 'all') {
-              show = true;
-            } else if (filter === 'cpu') {
-              if (card.dataset.cpu === 'true') show = true;
-            } else if (filter === 'spectator') {
-              if (card.dataset.spectator === 'true') show = true;
-            } else if (filter === 'coop') {
-              if (card.dataset.coop === 'true') show = true;
-            } else {
-              if (cat.id === filter) show = true;
-            }
+        let matchQuery = title.includes(query) || desc.includes(query) || tags.includes(query);
 
-            if (show) {
-              card.style.display = 'flex';
-              hasVisibleCards = true;
-            } else {
-              card.style.display = 'none';
-            }
-          });
+        if (matchFilter && matchQuery) {
+          card.classList.remove('hidden');
+          hasVisible = true;
+        } else {
+          card.classList.add('hidden');
+        }
+      });
+      
+      allGamesSection.classList.toggle('hidden', !hasVisible);
+    }
 
-          if (hasVisibleCards) {
-            cat.style.display = 'block';
-            void cat.offsetWidth; // リフローを強制してアニメーションを再実行
-            cat.classList.add('fade-in');
-          } else {
-            cat.style.display = 'none';
+    searchInput.addEventListener('input', filterGames);
+    filterBtns.forEach(btn => btn.addEventListener('click', () => {
+      filterBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      filterGames();
+    }));
+
+    function updateFavs() {
+      favsGrid.innerHTML = '';
+      if (favorites.length === 0) { 
+        favsSection.classList.add('hidden'); 
+      } else {
+        favsSection.classList.remove('hidden');
+        favorites.forEach(id => {
+          const original = document.querySelector(`#all-games .game-card[data-id="${id}"]`);
+          if (original) {
+            const clone = original.cloneNode(true);
+            // お気に入り側のカードは常に表示状態にするため、hiddenクラスを剥がす
+            clone.classList.remove('hidden');
+            clone.querySelector('.pin-btn').addEventListener('click', (e) => {
+              e.preventDefault(); toggleFav(id);
+            });
+            clone.addEventListener('mousemove', handleParticle);
+            favsGrid.appendChild(clone);
           }
         });
+      }
+      // メインリストのピン状態を更新
+      document.querySelectorAll('#all-games .pin-btn').forEach(btn => {
+        const id = btn.closest('.game-card').dataset.id;
+        btn.classList.toggle('active', favorites.includes(id));
+      });
+    }
+
+    function toggleFav(id) {
+      favorites = favorites.includes(id) ? favorites.filter(f => f !== id) : [...favorites, id];
+      localStorage.setItem('game_favorites', JSON.stringify(favorites));
+      updateFavs();
+    }
+
+    document.querySelectorAll('#all-games .pin-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault(); toggleFav(btn.closest('.game-card').dataset.id);
       });
     });
+
+    function handleParticle(e) {
+      const rect = this.getBoundingClientRect();
+      this.style.setProperty('--x', `${((e.clientX - rect.left) / rect.width) * 100}%`);
+      this.style.setProperty('--y', `${((e.clientY - rect.top) / rect.height) * 100}%`);
+    }
+    document.querySelectorAll('.game-card').forEach(card => card.addEventListener('mousemove', handleParticle));
+
+    const menuToggle = document.getElementById('menu-toggle');
+    const overlay = document.getElementById('nav-overlay');
+    menuToggle.addEventListener('click', () => document.body.classList.toggle('nav-open'));
+    overlay.addEventListener('click', () => document.body.classList.remove('nav-open'));
+    document.querySelectorAll('#side-nav a').forEach(a => a.addEventListener('click', () => document.body.classList.remove('nav-open')));
+
+    updateFavs();
   </script>
  </body>
 </html>

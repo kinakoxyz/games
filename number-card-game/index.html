@@ -404,90 +404,129 @@ function handleRoomUpdate(room){
     }
   }
 
-  let savedChatText = "";
-  let wasChatFocused = false;
-  const chatInput = document.getElementById('chatInput');
-  if (chatInput) {
-    savedChatText = chatInput.value;
-    wasChatFocused = document.activeElement === chatInput;
-  }
-  const chatLogBox = document.getElementById('chatLogBox');
-  const savedChatScroll = chatLogBox ? {
-    top: chatLogBox.scrollTop,
-    isAtBottom: chatLogBox.scrollHeight - chatLogBox.scrollTop - chatLogBox.clientHeight <= 20
-  } : { top: 0, isAtBottom: true };
-  const windowScrollY = window.scrollY;
+  const roomCopy = { ...room };
+  delete roomCopy.chat_messages;
+  const currentMainStateStr = JSON.stringify(roomCopy);
+  const needsFullRender = (window._previousMainStateStr !== currentMainStateStr);
 
-  let needRender = false;
-  let useSoftRender = false;
-  let changeState = null;
-
-  if(room.status==='playing'&&(state.screen==='waiting'||state.screen==='lobby')){
-    state.roomData=room;
-    changeState='game';
-  }
-  else if(room.status==='reveal'&&state.screen==='game'){
-    state.roomData=room;clearTimer();
-    const app=document.getElementById('app');
-    app.classList.remove('fade-in');
-    void app.offsetWidth; // アニメーションをリセット
-    app.classList.add('fade-in');
-    needRender=true;
-    setTimeout(()=>startRevealTimer(), 0);
-  }
-  else if(room.status==='playing'&&state.screen==='game'){
-    const me=state.playerNum;
-    const myPick=me===1?room.p1_pick:room.p2_pick;
-    const oppPick=me===1?room.p2_pick:room.p1_pick;
-    if(myPick!==null&&oppPick!==null){
-      if (!window._resolvingRound) {
-        window._resolvingRound = true;
-        resolveRound(room).finally(() => { window._resolvingRound = false; });
-      }
-      return; // DB更新が走るので一旦スキップ
+  if (needsFullRender) {
+    let savedChatText = "";
+    let wasChatFocused = false;
+    const chatInput = document.getElementById('chatInput');
+    if (chatInput) {
+      savedChatText = chatInput.value;
+      wasChatFocused = document.activeElement === chatInput;
     }
-    state.roomData=room;
-    useSoftRender=true;
-  }
-  else if(room.status==='finished'){
-    clearTimer();stopRevealTimer();
-    state.roomData=room;
-    changeState='result';
-  }
-  else {
-    state.roomData=room;
-    if (state.screen==='game' || state.screen==='result' || state.screen==='waiting') {
+    const chatLogBox = document.getElementById('chatLogBox');
+    const savedChatScroll = chatLogBox ? {
+      top: chatLogBox.scrollTop,
+      isAtBottom: chatLogBox.scrollHeight - chatLogBox.scrollTop - chatLogBox.clientHeight <= 20
+    } : { top: 0, isAtBottom: true };
+    const windowScrollY = window.scrollY;
+
+    let needRender = false;
+    let useSoftRender = false;
+    let changeState = null;
+
+    if(room.status==='playing'&&(state.screen==='waiting'||state.screen==='lobby')){
+      state.roomData=room;
+      changeState='game';
+    }
+    else if(room.status==='reveal'&&state.screen==='game'){
+      state.roomData=room;clearTimer();
+      const app=document.getElementById('app');
+      app.classList.remove('fade-in');
+      void app.offsetWidth; // アニメーションをリセット
+      app.classList.add('fade-in');
+      needRender=true;
+      setTimeout(()=>startRevealTimer(), 0);
+    }
+    else if(room.status==='playing'&&state.screen==='game'){
+      const me=state.playerNum;
+      const myPick=me===1?room.p1_pick:room.p2_pick;
+      const oppPick=me===1?room.p2_pick:room.p1_pick;
+      if(myPick!==null&&oppPick!==null){
+        if (!window._resolvingRound) {
+          window._resolvingRound = true;
+          resolveRound(room).finally(() => { window._resolvingRound = false; });
+        }
+        return; // DB更新が走るので一旦スキップ
+      }
+      state.roomData=room;
       useSoftRender=true;
     }
-  }
-
-  if(changeState) {
-    setState(changeState);
-  } else if(useSoftRender) {
-    softRender();
-  } else if(needRender) {
-    render();
-  }
-
-  setTimeout(() => {
-    const newChatInput = document.getElementById('chatInput');
-    if (newChatInput) {
-      newChatInput.value = savedChatText;
-      if (wasChatFocused) {
-        newChatInput.focus();
-        newChatInput.setSelectionRange(savedChatText.length, savedChatText.length);
+    else if(room.status==='finished'){
+      clearTimer();stopRevealTimer();
+      state.roomData=room;
+      changeState='result';
+    }
+    else {
+      state.roomData=room;
+      if (state.screen==='game' || state.screen==='result' || state.screen==='waiting') {
+        useSoftRender=true;
       }
     }
-    const newChatLogBox = document.getElementById('chatLogBox');
-    if (newChatLogBox) {
-      if (savedChatScroll.isAtBottom) {
-        newChatLogBox.scrollTop = newChatLogBox.scrollHeight;
-      } else {
-        newChatLogBox.scrollTop = savedChatScroll.top;
-      }
+
+    if(changeState) {
+      setState(changeState);
+    } else if(useSoftRender) {
+      softRender();
+    } else if(needRender) {
+      render();
     }
-    window.scrollTo(0, windowScrollY);
-  }, 0);
+    
+    window._previousMainStateStr = currentMainStateStr;
+
+    setTimeout(() => {
+      const newChatInput = document.getElementById('chatInput');
+      if (newChatInput) {
+        newChatInput.value = savedChatText;
+        if (wasChatFocused) {
+          newChatInput.focus();
+          newChatInput.setSelectionRange(savedChatText.length, savedChatText.length);
+        }
+      }
+      const newChatLogBox = document.getElementById('chatLogBox');
+      if (newChatLogBox) {
+        if (savedChatScroll.isAtBottom) {
+          newChatLogBox.scrollTop = newChatLogBox.scrollHeight;
+        } else {
+          newChatLogBox.scrollTop = savedChatScroll.top;
+        }
+      }
+      window.scrollTo(0, windowScrollY);
+    }, 0);
+  } else {
+    state.roomData = room;
+    const logBox = document.getElementById('chatLogBox');
+    if (logBox) {
+      const isAtBottom = logBox.scrollHeight - logBox.scrollTop - logBox.clientHeight <= 20;
+      
+      if (logBox.children.length === 1 && logBox.children[0].textContent === "メッセージはありません") {
+        logBox.innerHTML = '';
+      }
+      if (logBox.children.length > msgs.length) logBox.innerHTML = '';
+      
+      const currentCount = logBox.children.length;
+      for (let i = currentCount; i < msgs.length; i++) {
+        const m = msgs[i];
+        const isMe = m.senderNum === state.playerNum;
+        const senderName = m.senderNum === 1 ? room.player1_name : room.player2_name;
+        
+        const div = document.createElement('div');
+        div.className = `chat-msg-wrap ${isMe ? 'me' : 'opp'}`;
+        div.innerHTML = `
+          <div class="chat-msg-name">${h(senderName)}</div>
+          <div class="chat-msg-text">${h(m.text)}</div>
+        `;
+        logBox.appendChild(div);
+      }
+      
+      if (msgs.length === 0 && logBox.children.length === 0) logBox.innerHTML = '<div style="text-align:center; color:var(--muted); font-size:11px; margin-top: 40px;">メッセージはありません</div>';
+      
+      if (isAtBottom) logBox.scrollTop = logBox.scrollHeight;
+    }
+  }
 }
 
 async function submitCard(card){
